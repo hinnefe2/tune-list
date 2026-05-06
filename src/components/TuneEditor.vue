@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import InputChips from 'primevue/inputchips'
 import Button from 'primevue/button'
 import type { Tune, TuneInsert, TuneUpdate } from '@/services/tunes'
+import type { MediaKind } from '@/services/media'
 import {
   COMMON_KEYS,
   COMMON_TUNINGS,
   STATUS_OPTIONS,
 } from '@/lib/tune-options'
+import { MEDIA_KIND_OPTIONS, inferKindFromUrl } from '@/lib/media-helpers'
 
 interface Form {
   name: string
@@ -23,9 +25,14 @@ interface Form {
   notes: string | null
 }
 
+export interface NewMediaRow {
+  kind: MediaKind
+  url: string
+}
+
 const props = defineProps<{ tune: Tune | null }>()
 const emit = defineEmits<{
-  save: [payload: TuneInsert | TuneUpdate, isUpdate: boolean]
+  save: [payload: TuneInsert | TuneUpdate, isUpdate: boolean, mediaRows: NewMediaRow[]]
   cancel: []
 }>()
 
@@ -41,13 +48,17 @@ const blank = (): Form => ({
 })
 
 const form = ref<Form>(blank())
+const mediaRows = ref<NewMediaRow[]>([])
 const submitting = ref(false)
 const errorMsg = ref<string | null>(null)
+
+const isAdd = computed(() => props.tune === null)
 
 watch(
   () => props.tune,
   (t) => {
     errorMsg.value = null
+    mediaRows.value = []
     if (!t) {
       form.value = blank()
       return
@@ -69,12 +80,45 @@ watch(
 const keyOptions = COMMON_KEYS.map((k) => ({ value: k, label: k }))
 const tuningOptions = COMMON_TUNINGS.map((t) => ({ value: t, label: t }))
 
+function addMediaRow() {
+  mediaRows.value.push({ kind: 'video', url: '' })
+}
+
+function removeMediaRow(idx: number) {
+  mediaRows.value.splice(idx, 1)
+}
+
+function onMediaUrlInput(idx: number, value: string) {
+  const row = mediaRows.value[idx]
+  if (!row) return
+  row.url = value
+  // Auto-classify if the user hasn't manually picked something specific yet.
+  if (value && row.kind === 'video') {
+    const inferred = inferKindFromUrl(value)
+    if (inferred !== 'other') row.kind = inferred
+  }
+}
+
 async function handleSubmit() {
   errorMsg.value = null
   if (!form.value.name.trim()) {
     errorMsg.value = 'Name is required.'
     return
   }
+  // Drop empty media rows; reject malformed URLs.
+  const cleanedMedia = mediaRows.value
+    .map((r) => ({ kind: r.kind, url: r.url.trim() }))
+    .filter((r) => r.url.length > 0)
+  for (const r of cleanedMedia) {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(r.url)
+    } catch {
+      errorMsg.value = `"${r.url}" doesn't look like a valid URL.`
+      return
+    }
+  }
+
   submitting.value = true
   try {
     const payload = {
@@ -87,7 +131,7 @@ async function handleSubmit() {
       status: form.value.status,
       notes: form.value.notes?.trim() || null,
     }
-    emit('save', payload, props.tune !== null)
+    emit('save', payload, props.tune !== null, cleanedMedia)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -167,6 +211,61 @@ async function handleSubmit() {
     <div class="space-y-1">
       <label class="block text-sm font-medium">Notes</label>
       <Textarea v-model="form.notes" class="w-full" rows="3" auto-resize />
+    </div>
+
+    <div v-if="isAdd" class="space-y-2 border-t border-surface-200 dark:border-surface-800 pt-4">
+      <div class="flex items-center justify-between">
+        <label class="block text-sm font-medium">
+          Media <span class="text-surface-400 font-normal">(optional)</span>
+        </label>
+        <Button
+          v-if="mediaRows.length === 0"
+          type="button"
+          severity="secondary"
+          text
+          size="small"
+          @click="addMediaRow"
+        >
+          <i class="pi pi-plus mr-2" /> Add link
+        </Button>
+      </div>
+      <ol v-if="mediaRows.length" class="space-y-2">
+        <li v-for="(row, idx) in mediaRows" :key="idx" class="flex items-start gap-2">
+          <Select
+            v-model="row.kind"
+            :options="MEDIA_KIND_OPTIONS"
+            option-label="label"
+            option-value="value"
+            class="!w-44"
+          />
+          <InputText
+            :model-value="row.url"
+            placeholder="https://…"
+            class="flex-1"
+            autocapitalize="off"
+            autocomplete="off"
+            @update:model-value="(v) => onMediaUrlInput(idx, v ?? '')"
+          />
+          <Button
+            type="button"
+            icon="pi pi-times"
+            severity="secondary"
+            text
+            rounded
+            size="small"
+            aria-label="Remove media"
+            @click="removeMediaRow(idx)"
+          />
+        </li>
+      </ol>
+      <div v-if="mediaRows.length">
+        <Button type="button" severity="secondary" text size="small" @click="addMediaRow">
+          <i class="pi pi-plus mr-2" /> Add another
+        </Button>
+      </div>
+      <p class="text-xs text-surface-500">
+        URLs only here; uploads, section anchors, and clip times are available on the tune detail page.
+      </p>
     </div>
 
     <p v-if="errorMsg" class="text-sm text-red-600 dark:text-red-400">{{ errorMsg }}</p>

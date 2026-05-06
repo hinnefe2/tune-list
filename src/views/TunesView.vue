@@ -11,8 +11,10 @@ import Menu from 'primevue/menu'
 import { useTunesStore } from '@/stores/tunes'
 import { useUiStore } from '@/stores/ui'
 import TuneList from '@/components/TuneList.vue'
-import TuneEditor from '@/components/TuneEditor.vue'
+import TuneEditor, { type NewMediaRow } from '@/components/TuneEditor.vue'
 import TuneImportDialog from '@/components/TuneImportDialog.vue'
+import { useAuthStore } from '@/stores/auth'
+import { createMediaLink } from '@/services/media'
 import type { TuneInsert, TuneUpdate, Tune } from '@/services/tunes'
 import {
   STATUS_OPTIONS,
@@ -24,6 +26,7 @@ import {
 const tunesStore = useTunesStore()
 const ui = useUiStore()
 const toast = useToast()
+const auth = useAuthStore()
 
 const editorOpen = ref(false)
 const editingTune = ref<Tune | null>(null)
@@ -104,13 +107,48 @@ function openAdd() {
   editorOpen.value = true
 }
 
-async function handleSave(payload: TuneInsert | TuneUpdate, isUpdate: boolean) {
+async function handleSave(
+  payload: TuneInsert | TuneUpdate,
+  isUpdate: boolean,
+  mediaRows: NewMediaRow[],
+) {
   try {
     if (isUpdate && editingTune.value) {
       await tunesStore.update(editingTune.value.id, payload as TuneUpdate)
       toast.add({ severity: 'success', summary: 'Tune updated', life: 2000 })
+      editorOpen.value = false
+      return
+    }
+    const created = await tunesStore.create(payload as Omit<TuneInsert, 'user_id'>)
+    if (mediaRows.length && auth.user) {
+      const userId = auth.user.id
+      const results = await Promise.allSettled(
+        mediaRows.map((r) =>
+          createMediaLink({
+            user_id: userId,
+            tune_id: created.id,
+            kind: r.kind,
+            url: r.url,
+          }),
+        ),
+      )
+      const failed = results.filter((r) => r.status === 'rejected').length
+      const succeeded = results.length - failed
+      if (failed > 0) {
+        toast.add({
+          severity: 'warn',
+          summary: `Tune saved; ${failed} of ${results.length} media link${results.length === 1 ? '' : 's'} failed`,
+          detail: 'Add the rest from the tune detail page.',
+          life: 6000,
+        })
+      } else {
+        toast.add({
+          severity: 'success',
+          summary: `Tune added with ${succeeded} media link${succeeded === 1 ? '' : 's'}`,
+          life: 2500,
+        })
+      }
     } else {
-      await tunesStore.create(payload as Omit<TuneInsert, 'user_id'>)
       toast.add({ severity: 'success', summary: 'Tune added', life: 2000 })
     }
     editorOpen.value = false
