@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Env files
+.env
+.env.local
+.env.*.local
+.env.import
+
+# Personal setup notes (may contain secrets while in progress)
+docs/setup.md
+
+# TypeScript build info
+*.tsbuildinfo
