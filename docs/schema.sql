@@ -152,9 +152,7 @@ create type card_kind as enum (
   'b_part',          -- recall B-part melody
   'c_part',          -- some tunes have a third part
   'key',             -- recall the key given the tune name
-  'name_from_audio', -- name the tune from an audio prompt
-  'source',          -- recall where you heard it / who taught it
-  'other'
+  'name_from_audio'  -- name the tune from an audio prompt
 );
 
 create table cards (

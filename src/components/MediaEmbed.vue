@@ -38,11 +38,27 @@ const spotify = computed(() => {
   return parseSpotify(props.media.url)
 })
 
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|avif|svg|bmp|tiff?)(\?|#|$)/i
+
+function looksLikeImage(src: string | null): boolean {
+  if (!src) return false
+  // Strip query/hash for the regex test; signed URLs from Supabase Storage
+  // include query params after the file extension.
+  return IMAGE_EXTENSIONS.test(src)
+}
+
 const sheetSrc = computed(() => {
   if (props.media.kind !== 'sheet_music') return null
   if (props.media.storage_path) return signedUrl.value
   if (props.media.url) return props.media.url
   return null
+})
+
+const sheetIsImage = computed(() => {
+  if (!sheetSrc.value) return false
+  // For uploaded files, prefer the original path (before signing) since the
+  // signed URL has query params that confuse the extension test.
+  return looksLikeImage(props.media.storage_path ?? sheetSrc.value)
 })
 
 const externalUrl = computed(() => {
@@ -83,9 +99,27 @@ const externalUrl = computed(() => {
     </div>
 
     <div v-else-if="media.kind === 'sheet_music'">
-      <a v-if="sheetSrc" :href="sheetSrc" target="_blank" rel="noopener noreferrer" class="block">
-        <img :src="sheetSrc" :alt="media.title ?? 'Sheet music'" class="max-w-full rounded border border-surface-200 dark:border-surface-800" loading="lazy" />
-      </a>
+      <template v-if="sheetSrc">
+        <a v-if="sheetIsImage" :href="sheetSrc" target="_blank" rel="noopener noreferrer" class="block">
+          <img
+            :src="sheetSrc"
+            :alt="media.title ?? 'Sheet music'"
+            class="max-w-full rounded border border-surface-200 dark:border-surface-800"
+            loading="lazy"
+          />
+        </a>
+        <a
+          v-else
+          :href="sheetSrc"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm rounded border border-surface-200 dark:border-surface-800 hover:bg-surface-50 dark:hover:bg-surface-900"
+        >
+          <i class="pi pi-file-pdf" />
+          <span>{{ media.title ?? 'Open sheet music' }}</span>
+          <i class="pi pi-external-link text-xs opacity-70" />
+        </a>
+      </template>
       <p v-else-if="signedError" class="text-sm text-red-600 dark:text-red-400">
         Couldn't load: {{ signedError }}
       </p>

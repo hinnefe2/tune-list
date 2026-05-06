@@ -396,14 +396,7 @@ export type Database = {
       can_view: { Args: { target_user_id: string }; Returns: boolean }
     }
     Enums: {
-      card_kind:
-        | "a_part"
-        | "b_part"
-        | "c_part"
-        | "key"
-        | "name_from_audio"
-        | "source"
-        | "other"
+      card_kind: "a_part" | "b_part" | "c_part" | "key" | "name_from_audio"
       media_kind:
         | "audio"
         | "video"
@@ -552,15 +545,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      card_kind: [
-        "a_part",
-        "b_part",
-        "c_part",
-        "key",
-        "name_from_audio",
-        "source",
-        "other",
-      ],
+      card_kind: ["a_part", "b_part", "c_part", "key", "name_from_audio"],
       media_kind: [
         "audio",
         "video",

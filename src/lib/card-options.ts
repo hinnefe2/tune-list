@@ -46,20 +46,6 @@ export const CARD_KIND_META: CardKindMeta[] = [
     description: 'Identify the tune from a linked audio clip.',
     defaultOnLearning: false,
   },
-  {
-    value: 'source',
-    label: 'Source',
-    prompt: (n) => `Where did you first hear "${n}"?`,
-    description: 'Recall the source.',
-    defaultOnLearning: false,
-  },
-  {
-    value: 'other',
-    label: 'Other',
-    prompt: (n) => `Notes recall for "${n}".`,
-    description: 'Free-form.',
-    defaultOnLearning: false,
-  },
 ]
 
 export const CARD_KIND_LABEL: Record<CardKind, string> = Object.fromEntries(

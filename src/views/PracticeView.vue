@@ -10,7 +10,6 @@ import { recordReview } from '@/services/reviews'
 import { supabase } from '@/services/supabase'
 import type { Tune } from '@/services/tunes'
 import type { MediaLink } from '@/services/media'
-import type { TuneSourceWithSource } from '@/services/tune-sources'
 import type { Rating } from '@/composables/useSpacedRepetition'
 import ReviewCard from '@/components/ReviewCard.vue'
 
@@ -26,7 +25,6 @@ const completedCount = ref(0)
 
 // Pre-fetched per-tune supporting data, keyed by tune_id.
 const mediaByTune = ref<Map<string, MediaLink[]>>(new Map())
-const sourcesByTune = ref<Map<string, TuneSourceWithSource[]>>(new Map())
 
 async function loadQueue() {
   loading.value = true
@@ -35,29 +33,18 @@ async function loadQueue() {
     dueCards.value = await listDueCards()
     if (dueCards.value.length === 0) return
     const tuneIds = Array.from(new Set(dueCards.value.map((c) => c.tune_id)))
-    const [mediaRes, sourcesRes] = await Promise.all([
-      supabase.from('media_links').select('*').in('tune_id', tuneIds),
-      supabase
-        .from('tune_sources')
-        .select('*, source:sources(*)')
-        .in('tune_id', tuneIds),
-    ])
-    if (mediaRes.error) throw mediaRes.error
-    if (sourcesRes.error) throw sourcesRes.error
+    const { data: mediaRows, error: mediaErr } = await supabase
+      .from('media_links')
+      .select('*')
+      .in('tune_id', tuneIds)
+    if (mediaErr) throw mediaErr
     const mediaMap = new Map<string, MediaLink[]>()
-    for (const row of mediaRes.data ?? []) {
+    for (const row of mediaRows ?? []) {
       const arr = mediaMap.get(row.tune_id) ?? []
       arr.push(row as MediaLink)
       mediaMap.set(row.tune_id, arr)
     }
     mediaByTune.value = mediaMap
-    const sourcesMap = new Map<string, TuneSourceWithSource[]>()
-    for (const row of (sourcesRes.data ?? []) as unknown as TuneSourceWithSource[]) {
-      const arr = sourcesMap.get(row.tune_id) ?? []
-      arr.push(row)
-      sourcesMap.set(row.tune_id, arr)
-    }
-    sourcesByTune.value = sourcesMap
   } catch (e) {
     toast.add({
       severity: 'error',
@@ -82,11 +69,6 @@ const currentTune = computed<Tune | null>(() => {
 const currentMedia = computed<MediaLink[]>(() => {
   if (!currentCard.value) return []
   return mediaByTune.value.get(currentCard.value.tune_id) ?? []
-})
-
-const currentSources = computed<TuneSourceWithSource[]>(() => {
-  if (!currentCard.value) return []
-  return sourcesByTune.value.get(currentCard.value.tune_id) ?? []
 })
 
 const isComplete = computed(() => !loading.value && dueCards.value.length > 0 && currentIndex.value >= dueCards.value.length)
@@ -157,7 +139,6 @@ function skipCurrent() {
         :card="currentCard"
         :tune="currentTune"
         :media="currentMedia"
-        :sources="currentSources"
         @rate="handleRate"
       />
     </div>

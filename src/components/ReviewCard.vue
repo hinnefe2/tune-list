@@ -4,7 +4,6 @@ import Button from 'primevue/button'
 import type { Tune } from '@/services/tunes'
 import type { CardWithState } from '@/services/cards'
 import type { MediaLink } from '@/services/media'
-import type { TuneSourceWithSource } from '@/services/tune-sources'
 import type { Rating } from '@/composables/useSpacedRepetition'
 import { CARD_KIND_BY_VALUE } from '@/lib/card-options'
 import MediaEmbed from '@/components/MediaEmbed.vue'
@@ -13,7 +12,6 @@ const props = defineProps<{
   card: CardWithState
   tune: Tune
   media: MediaLink[]
-  sources: TuneSourceWithSource[]
 }>()
 
 const emit = defineEmits<{ rate: [rating: Rating] }>()
@@ -114,13 +112,6 @@ const ratingButtons: { rating: Rating; label: string; cls: string; key: string }
         </span>
       </div>
 
-      <div v-if="card.kind === 'source'" class="space-y-1 text-sm">
-        <div v-if="!sources.length" class="text-surface-500">No sources linked.</div>
-        <ul v-else>
-          <li v-for="s in sources" :key="s.id">{{ s.source.name }}</li>
-        </ul>
-      </div>
-
       <div v-if="['a_part', 'b_part', 'c_part'].includes(card.kind)" class="space-y-3">
         <div v-if="!sheetReferences.length" class="text-sm text-surface-500">
           No reference media for this tune.
@@ -128,10 +119,6 @@ const ratingButtons: { rating: Rating; label: string; cls: string; key: string }
         <div v-for="m in sheetReferences" :key="m.id">
           <MediaEmbed :media="m" />
         </div>
-      </div>
-
-      <div v-if="card.kind === 'other'" class="text-sm whitespace-pre-wrap">
-        {{ card.notes ?? tune.notes ?? 'No notes.' }}
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
