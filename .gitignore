@@ -33,5 +33,12 @@ npm-debug.log*
 # Personal setup notes (may contain secrets while in progress)
 docs/setup.md
 
+# Vim swap/undo files
+*.sw[a-p]
+*.un~
+
+# Supabase CLI scratch dir
+supabase/
+
 # TypeScript build info
 *.tsbuildinfo
