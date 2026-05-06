@@ -28,9 +28,12 @@ import {
   type MediaLinkInsert,
   type MediaLinkUpdate,
 } from '@/services/media'
+import { listCardsForTune, setCardEnabled, type Card } from '@/services/cards'
 import { SOURCE_KIND_ICON } from '@/lib/source-options'
 import { MEDIA_KIND_LABEL } from '@/lib/media-helpers'
+import { CARD_KIND_META, type CardKind } from '@/lib/card-options'
 import type { Source } from '@/services/sources'
+import ToggleSwitch from 'primevue/toggleswitch'
 
 const props = defineProps<{ id: string }>()
 
@@ -43,6 +46,7 @@ const confirm = useConfirm()
 const tune = ref<Tune | null>(null)
 const tuneSources = ref<TuneSourceWithSource[]>([])
 const mediaLinks = ref<MediaLink[]>([])
+const cards = ref<Card[]>([])
 const loading = ref(true)
 const editorOpen = ref(false)
 const mediaEditorOpen = ref(false)
@@ -55,12 +59,14 @@ async function load() {
     const fromStore = tunesStore.getById(props.id)
     tune.value = fromStore ?? (await getTune(props.id))
     if (tune.value) {
-      const [ts, ml] = await Promise.all([
+      const [ts, ml, cs] = await Promise.all([
         listTuneSources(tune.value.id),
         listMediaForTune(tune.value.id),
+        listCardsForTune(tune.value.id),
       ])
       tuneSources.value = ts
       mediaLinks.value = ml
+      cards.value = cs
     }
   } catch (e) {
     toast.add({
@@ -208,6 +214,32 @@ async function handleMediaSave(payload: MediaLinkInsert | MediaLinkUpdate, isUpd
   }
 }
 
+function getCardForKind(kind: CardKind): Card | null {
+  return cards.value.find((c) => c.kind === kind) ?? null
+}
+
+async function handleCardToggle(kind: CardKind, enabled: boolean) {
+  if (!tune.value || !auth.user) return
+  const existing = getCardForKind(kind)
+  // No-op disable on a non-existent card.
+  if (!existing && !enabled) return
+  try {
+    const updated = await setCardEnabled(tune.value.id, auth.user.id, kind, enabled, existing)
+    if (existing) {
+      cards.value = cards.value.map((c) => (c.id === updated.id ? updated : c))
+    } else {
+      cards.value = [...cards.value, updated]
+    }
+  } catch (e) {
+    toast.add({
+      severity: 'error',
+      summary: 'Failed to update card',
+      detail: e instanceof Error ? e.message : String(e),
+      life: 5000,
+    })
+  }
+}
+
 function deleteMedia(m: MediaLink) {
   confirm.require({
     message: `Delete this ${MEDIA_KIND_LABEL[m.kind]} link?`,
@@ -345,6 +377,30 @@ function deleteMedia(m: MediaLink) {
               </div>
             </div>
             <MediaEmbed :media="m" />
+          </li>
+        </ul>
+      </section>
+
+      <section class="space-y-3 border-t border-surface-200 dark:border-surface-800 pt-5">
+        <h2 class="text-sm font-medium text-surface-500">Practice cards</h2>
+        <p v-if="liveTune.status !== 'learning'" class="text-xs text-surface-500">
+          Default cards (A part, B part, key) auto-generate when a tune moves to <span class="font-medium">Learning</span>.
+          Toggle additional kinds here.
+        </p>
+        <ul class="divide-y divide-surface-200 dark:divide-surface-800 border border-surface-200 dark:border-surface-800 rounded-lg">
+          <li
+            v-for="meta in CARD_KIND_META"
+            :key="meta.value"
+            class="flex items-center justify-between gap-3 px-3 py-2"
+          >
+            <div class="min-w-0">
+              <div class="text-sm font-medium">{{ meta.label }}</div>
+              <div class="text-xs text-surface-500 truncate">{{ meta.description }}</div>
+            </div>
+            <ToggleSwitch
+              :model-value="getCardForKind(meta.value)?.enabled ?? false"
+              @update:model-value="(v: boolean) => handleCardToggle(meta.value, v)"
+            />
           </li>
         </ul>
       </section>

@@ -234,6 +234,13 @@ export type Database = {
             referencedRelation: "cards"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "reviews_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards_with_state"
+            referencedColumns: ["id"]
+          },
         ]
       }
       sources: {
@@ -358,7 +365,32 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      cards_with_state: {
+        Row: {
+          created_at: string | null
+          ease_factor: number | null
+          enabled: boolean | null
+          id: string | null
+          interval_days: number | null
+          kind: Database["public"]["Enums"]["card_kind"] | null
+          last_rating: number | null
+          last_review_id: string | null
+          last_reviewed_at: string | null
+          next_review_on: string | null
+          notes: string | null
+          tune_id: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cards_tune_id_fkey"
+            columns: ["tune_id"]
+            isOneToOne: false
+            referencedRelation: "tunes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_view: { Args: { target_user_id: string }; Returns: boolean }
