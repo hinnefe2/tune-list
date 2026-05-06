@@ -35,6 +35,13 @@ export async function createTune(input: TuneInsert): Promise<Tune> {
   return data
 }
 
+export async function createTunesBulk(inputs: TuneInsert[]): Promise<Tune[]> {
+  if (inputs.length === 0) return []
+  const { data, error } = await supabase.from('tunes').insert(inputs).select('*')
+  if (error) throw error
+  return data ?? []
+}
+
 export async function updateTune(id: string, patch: TuneUpdate): Promise<Tune> {
   const { data, error } = await supabase
     .from('tunes')

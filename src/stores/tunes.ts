@@ -5,6 +5,7 @@ import { supabase } from '@/services/supabase'
 import {
   listTunes,
   createTune as svcCreate,
+  createTunesBulk as svcCreateBulk,
   updateTune as svcUpdate,
   deleteTune as svcDelete,
   type Tune,
@@ -88,6 +89,15 @@ export const useTunesStore = defineStore('tunes', () => {
     return created
   }
 
+  async function createMany(inputs: Omit<TuneInsert, 'user_id'>[]): Promise<Tune[]> {
+    const auth = useAuthStore()
+    if (!auth.user) throw new Error('Not signed in')
+    const userId = auth.user.id
+    const created = await svcCreateBulk(inputs.map((i) => ({ ...i, user_id: userId })))
+    for (const t of created) upsertLocal(t)
+    return created
+  }
+
   async function update(id: string, patch: TuneUpdate): Promise<Tune> {
     const updated = await svcUpdate(id, patch)
     upsertLocal(updated)
@@ -108,6 +118,7 @@ export const useTunesStore = defineStore('tunes', () => {
     fetchAll,
     getById,
     create,
+    createMany,
     update,
     remove,
   }
