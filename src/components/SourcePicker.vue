@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AutoComplete, { type AutoCompleteCompleteEvent, type AutoCompleteOptionSelectEvent } from 'primevue/autocomplete'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
@@ -19,6 +19,12 @@ const props = withDefaults(
 const emit = defineEmits<{ select: [source: Source] }>()
 
 const sourcesStore = useSourcesStore()
+// The picker is the only consumer that actually needs the full sources list
+// in memory, so seeding the store from here makes every host page work
+// without each one having to remember to init it.
+onMounted(() => {
+  if (!sourcesStore.initialized) void sourcesStore.init()
+})
 
 const query = ref<string | Source>('')
 const suggestions = ref<Source[]>([])
