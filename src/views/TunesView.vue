@@ -8,6 +8,8 @@ import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Menu from 'primevue/menu'
+import Skeleton from 'primevue/skeleton'
+import Badge from 'primevue/badge'
 import { useTunesStore } from '@/stores/tunes'
 import { useUiStore } from '@/stores/ui'
 import TuneList from '@/components/TuneList.vue'
@@ -22,16 +24,23 @@ import {
   STATUS_SORT_INDEX,
   type SortField,
 } from '@/lib/tune-options'
+import { tunesToCsv, downloadCsv, isoToday } from '@/lib/csv-export'
+import { useDelayed } from '@/composables/useDelayed'
 
 const tunesStore = useTunesStore()
 const ui = useUiStore()
 const toast = useToast()
 const auth = useAuthStore()
 
+const showSkeleton = useDelayed(
+  computed(() => tunesStore.loading && !tunesStore.initialized),
+)
+
 const editorOpen = ref(false)
 const editingTune = ref<Tune | null>(null)
 const importOpen = ref(false)
 const addSortMenu = ref<InstanceType<typeof Menu> | null>(null)
+const filtersOpen = ref(false)
 
 onMounted(async () => {
   try {
@@ -107,6 +116,25 @@ function openAdd() {
   editorOpen.value = true
 }
 
+function handleExport() {
+  try {
+    const csv = tunesToCsv(tunesStore.tunes)
+    downloadCsv(`tunes-${isoToday()}.csv`, csv)
+    toast.add({
+      severity: 'success',
+      summary: `Exported ${tunesStore.tunes.length} tunes`,
+      life: 2000,
+    })
+  } catch (e) {
+    toast.add({
+      severity: 'error',
+      summary: 'Export failed',
+      detail: e instanceof Error ? e.message : String(e),
+      life: 5000,
+    })
+  }
+}
+
 async function handleSave(
   payload: TuneInsert | TuneUpdate,
   isUpdate: boolean,
@@ -167,6 +195,17 @@ const filtersActive = computed(() => {
   return Boolean(f.search || f.status || f.key || f.genre || f.tuning)
 })
 
+const activeFilterCount = computed(() => {
+  const f = ui.tuneFilters
+  let n = 0
+  if (f.search.trim()) n++
+  if (f.status) n++
+  if (f.key) n++
+  if (f.genre) n++
+  if (f.tuning) n++
+  return n
+})
+
 const usedSortFields = computed(() => new Set(ui.tuneFilters.sortBy.map((c) => c.field)))
 
 function fieldOptionsForRow(idx: number) {
@@ -193,13 +232,51 @@ function openAddSortMenu(event: Event) {
     <div class="flex items-center justify-between gap-3 flex-wrap">
       <h1 class="text-2xl font-semibold">Tunes</h1>
       <div class="flex items-center gap-2">
-        <Button severity="secondary" outlined @click="importOpen = true">
-          <i class="pi pi-upload mr-2" /> Import CSV
+        <Button
+          severity="secondary"
+          outlined
+          :disabled="!tunesStore.tunes.length"
+          aria-label="Export CSV"
+          @click="handleExport"
+        >
+          <i class="pi pi-download sm:mr-2" /><span class="hidden sm:inline">Export CSV</span>
+        </Button>
+        <Button
+          severity="secondary"
+          outlined
+          aria-label="Import CSV"
+          @click="importOpen = true"
+        >
+          <i class="pi pi-upload sm:mr-2" /><span class="hidden sm:inline">Import CSV</span>
         </Button>
         <Button @click="openAdd"><i class="pi pi-plus mr-2" /> Add tune</Button>
       </div>
     </div>
 
+    <div class="flex items-center justify-between gap-3 sm:hidden">
+      <Button
+        severity="secondary"
+        outlined
+        size="small"
+        :aria-expanded="filtersOpen"
+        @click="filtersOpen = !filtersOpen"
+      >
+        <i class="pi pi-filter mr-2" />
+        Filters
+        <Badge
+          v-if="activeFilterCount"
+          :value="activeFilterCount"
+          severity="info"
+          class="ml-2"
+        />
+        <i :class="['pi text-xs ml-2', filtersOpen ? 'pi-chevron-up' : 'pi-chevron-down']" />
+      </Button>
+      <span class="text-sm text-surface-500 tabular-nums">
+        {{ filtered.length }} of {{ tunesStore.tunes.length }}
+      </span>
+    </div>
+
+    <div :class="{ 'max-sm:hidden': !filtersOpen }" class="space-y-4">
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
       <IconField class="lg:col-span-2">
         <InputIcon class="pi pi-search" />
@@ -254,7 +331,7 @@ function openAddSortMenu(event: Event) {
       <div class="flex items-center justify-between text-sm">
         <span class="text-surface-500 font-medium">Sort</span>
         <div class="flex items-center gap-3 text-surface-500">
-          <span>{{ filtered.length }} of {{ tunesStore.tunes.length }}</span>
+          <span class="hidden sm:inline">{{ filtered.length }} of {{ tunesStore.tunes.length }}</span>
           <Button v-if="filtersActive" text size="small" @click="ui.resetTuneFilters()">
             Clear filters
           </Button>
@@ -331,9 +408,25 @@ function openAddSortMenu(event: Event) {
         <Menu ref="addSortMenu" :model="addSortMenuItems" :popup="true" />
       </div>
     </div>
+    </div>
 
-    <div v-if="tunesStore.loading && !tunesStore.initialized" class="py-16 text-center text-surface-500">
-      <i class="pi pi-spin pi-spinner mr-2" /> Loading…
+    <div v-if="tunesStore.loading && !tunesStore.initialized" aria-busy="true">
+      <div
+        v-if="showSkeleton"
+        class="border border-surface-200 dark:border-surface-800 rounded-lg overflow-hidden"
+      >
+        <div
+          v-for="i in 6"
+          :key="i"
+          class="px-4 py-3 border-b border-surface-200 dark:border-surface-800 last:border-b-0 flex items-start justify-between gap-3"
+        >
+          <div class="min-w-0 flex-1 space-y-2">
+            <Skeleton :width="`${50 + ((i * 7) % 30)}%`" height="1rem" />
+            <Skeleton :width="`${25 + ((i * 5) % 20)}%`" height="0.75rem" />
+          </div>
+          <Skeleton width="4.5rem" height="1.25rem" />
+        </div>
+      </div>
     </div>
     <TuneList v-else :tunes="filtered">
       <template #empty>

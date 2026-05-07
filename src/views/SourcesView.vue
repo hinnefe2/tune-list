@@ -8,13 +8,19 @@ import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import Skeleton from 'primevue/skeleton'
 import { useSourcesStore } from '@/stores/sources'
+import { useDelayed } from '@/composables/useDelayed'
 import SourceEditor from '@/components/SourceEditor.vue'
 import type { Source, SourceInsert, SourceUpdate, SourceKind } from '@/services/sources'
 import { SOURCE_KIND_OPTIONS, SOURCE_KIND_LABEL, SOURCE_KIND_ICON } from '@/lib/source-options'
 
 const sourcesStore = useSourcesStore()
 const toast = useToast()
+
+const showSkeleton = useDelayed(
+  computed(() => sourcesStore.loading && !sourcesStore.initialized),
+)
 
 const editorOpen = ref(false)
 const editingSource = ref<Source | null>(null)
@@ -103,8 +109,23 @@ async function handleSave(payload: SourceInsert | SourceUpdate, isUpdate: boolea
       />
     </div>
 
-    <div v-if="sourcesStore.loading && !sourcesStore.initialized" class="py-16 text-center text-surface-500">
-      <i class="pi pi-spin pi-spinner mr-2" /> Loading…
+    <div v-if="sourcesStore.loading && !sourcesStore.initialized" aria-busy="true">
+      <div
+        v-if="showSkeleton"
+        class="border border-surface-200 dark:border-surface-800 rounded-lg overflow-hidden"
+      >
+        <div
+          v-for="i in 5"
+          :key="i"
+          class="px-4 py-3 border-b border-surface-200 dark:border-surface-800 last:border-b-0 flex items-center gap-3"
+        >
+          <Skeleton shape="circle" size="1rem" />
+          <div class="flex-1 space-y-2">
+            <Skeleton :width="`${40 + ((i * 8) % 35)}%`" height="1rem" />
+            <Skeleton :width="`${20 + ((i * 4) % 15)}%`" height="0.75rem" />
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="!sourcesStore.sources.length" class="py-20 text-center space-y-3">

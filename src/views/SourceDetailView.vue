@@ -5,6 +5,8 @@ import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
+import Skeleton from 'primevue/skeleton'
+import { useDelayed } from '@/composables/useDelayed'
 import { useSourcesStore } from '@/stores/sources'
 import { useTunesStore } from '@/stores/tunes'
 import { listTunesForSource } from '@/services/tune-sources'
@@ -25,6 +27,7 @@ const source = ref<Source | null>(null)
 const tuneIds = ref<Set<string>>(new Set())
 const loading = ref(true)
 const editorOpen = ref(false)
+const showSkeleton = useDelayed(loading)
 
 async function load() {
   loading.value = true
@@ -109,8 +112,24 @@ function handleDelete() {
       </button>
     </div>
 
-    <div v-if="loading" class="py-16 text-center text-surface-500">
-      <i class="pi pi-spin pi-spinner mr-2" /> Loading…
+    <div v-if="loading" aria-busy="true">
+      <div v-if="showSkeleton" class="space-y-6">
+        <div class="space-y-2">
+          <Skeleton width="50%" height="2.25rem" />
+          <Skeleton width="20%" height="1rem" />
+        </div>
+        <div class="space-y-2">
+          <Skeleton width="20%" height="0.875rem" />
+          <div
+            v-for="i in 4"
+            :key="i"
+            class="border-b border-surface-200 dark:border-surface-800 px-4 py-3 flex items-center justify-between gap-3"
+          >
+            <Skeleton :width="`${45 + ((i * 6) % 25)}%`" height="1rem" />
+            <Skeleton width="4.5rem" height="1.25rem" />
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="!liveSource" class="py-16 text-center space-y-3">

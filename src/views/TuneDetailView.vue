@@ -34,6 +34,8 @@ import { MEDIA_KIND_LABEL } from '@/lib/media-helpers'
 import { CARD_KIND_META, type CardKind } from '@/lib/card-options'
 import type { Source } from '@/services/sources'
 import ToggleSwitch from 'primevue/toggleswitch'
+import Skeleton from 'primevue/skeleton'
+import { useDelayed } from '@/composables/useDelayed'
 
 const props = defineProps<{ id: string }>()
 
@@ -51,6 +53,7 @@ const loading = ref(true)
 const editorOpen = ref(false)
 const mediaEditorOpen = ref(false)
 const editingMedia = ref<MediaLink | null>(null)
+const showSkeleton = useDelayed(loading)
 
 async function load() {
   loading.value = true
@@ -273,8 +276,26 @@ function deleteMedia(m: MediaLink) {
       </button>
     </div>
 
-    <div v-if="loading" class="py-16 text-center text-surface-500">
-      <i class="pi pi-spin pi-spinner mr-2" /> Loading…
+    <div v-if="loading" aria-busy="true">
+      <div v-if="showSkeleton" class="space-y-6">
+        <div class="flex items-start justify-between gap-3">
+          <Skeleton width="60%" height="2.25rem" />
+          <Skeleton width="5rem" height="1.5rem" />
+        </div>
+        <div class="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2.5">
+          <Skeleton width="3rem" height="1rem" />
+          <Skeleton width="6rem" height="1rem" />
+          <Skeleton width="3.5rem" height="1rem" />
+          <Skeleton width="4.5rem" height="1rem" />
+          <Skeleton width="3rem" height="1rem" />
+          <Skeleton width="5rem" height="1rem" />
+        </div>
+        <div class="space-y-2">
+          <Skeleton width="20%" height="0.875rem" />
+          <Skeleton width="100%" height="1rem" />
+          <Skeleton width="85%" height="1rem" />
+        </div>
+      </div>
     </div>
 
     <div v-else-if="!liveTune" class="py-16 text-center space-y-3">
