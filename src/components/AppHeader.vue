@@ -35,8 +35,13 @@ const navLinks = [
   <header class="border-b border-surface-200 dark:border-surface-800 bg-surface-0 dark:bg-surface-950">
     <div class="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
       <div class="flex items-center gap-6">
-        <RouterLink :to="{ name: 'tunes' }" class="font-semibold tracking-tight text-lg">
-          Tune List
+        <RouterLink
+          :to="{ name: 'tunes' }"
+          class="font-semibold tracking-tight text-lg shrink-0"
+          aria-label="Tune List"
+        >
+          <span class="hidden sm:inline">Tune List</span>
+          <span class="sm:hidden text-xl leading-none" aria-hidden="true">🎻</span>
         </RouterLink>
         <nav class="flex items-center gap-1">
           <RouterLink
