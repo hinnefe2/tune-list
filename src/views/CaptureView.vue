@@ -8,14 +8,13 @@ import Select from 'primevue/select'
 import { useTunesStore } from '@/stores/tunes'
 import { useSourcesStore } from '@/stores/sources'
 import { useAuthStore } from '@/stores/auth'
-import { linkTuneSource } from '@/services/tune-sources'
 import type { Source } from '@/services/sources'
+import { createTuneWithAttachments } from '@/services/tune-creation'
+import { reportSaveResult } from '@/lib/save-reporter'
 import { SOURCE_KIND_ICON, SOURCE_KIND_LABEL } from '@/lib/source-options'
 import SourcePicker from '@/components/SourcePicker.vue'
 import AudioRecorder from '@/components/AudioRecorder.vue'
 import type { RecorderResult } from '@/composables/useAudioRecorder'
-import { uploadRecording } from '@/services/storage'
-import { createRecording } from '@/services/recordings'
 import { findCandidates } from '@/lib/tune-matching'
 import { RouterLink } from 'vue-router'
 
@@ -79,55 +78,21 @@ async function handleSave() {
   if (!canSave.value || !auth.user) return
   saving.value = true
   try {
-    const created = await tunesStore.create({
-      name: name.value.trim(),
-      status: 'wishlist',
-      key: key.value,
-      notes: notes.value.trim() || null,
+    const result = await createTuneWithAttachments({
+      userId: auth.user.id,
+      tune: {
+        name: name.value.trim(),
+        status: 'wishlist',
+        key: key.value,
+        notes: notes.value.trim() || null,
+      },
+      sources: selectedSource.value ? [selectedSource.value] : [],
+      recording: stagedRecording.value ?? undefined,
     })
-    if (selectedSource.value) {
-      try {
-        await linkTuneSource({
-          user_id: auth.user.id,
-          tune_id: created.id,
-          source_id: selectedSource.value.id,
-          heard_on: null,
-          notes: null,
-        })
-      } catch (e) {
-        toast.add({
-          severity: 'warn',
-          summary: 'Tune saved; source link failed',
-          detail: e instanceof Error ? e.message : String(e),
-          life: 5000,
-        })
-      }
-    }
-    if (stagedRecording.value) {
-      try {
-        const rec = stagedRecording.value
-        const path = await uploadRecording(auth.user.id, rec.blob, rec.ext)
-        await createRecording({
-          user_id: auth.user.id,
-          tune_id: created.id,
-          source_id: selectedSource.value?.id ?? null,
-          storage_path: path,
-          duration_seconds: rec.durationSeconds,
-        })
-      } catch (e) {
-        toast.add({
-          severity: 'warn',
-          summary: 'Tune saved; recording upload failed',
-          detail: e instanceof Error ? e.message : String(e),
-          life: 5000,
-        })
-      }
-    }
-    toast.add({
-      severity: 'success',
-      summary: `"${created.name}" saved`,
-      detail: 'Add another?',
-      life: 2500,
+    tunesStore.upsert(result.tune)
+    reportSaveResult(toast, result, {
+      successSummary: `"${result.tune.name}" saved`,
+      successDetail: 'Add another?',
     })
     // Clear name, key, notes — keep source for the next tune at the same jam.
     name.value = ''

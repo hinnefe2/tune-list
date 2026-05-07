@@ -121,5 +121,11 @@ export const useTunesStore = defineStore('tunes', () => {
     createMany,
     update,
     remove,
+    /** Synchronously push a tune row into the local list. Useful when an
+     *  external orchestrator (e.g. createTuneWithAttachments) inserts the
+     *  tune itself and we want the UI to reflect it without waiting on the
+     *  realtime subscription. Idempotent — re-firing realtime will just
+     *  replace in place. */
+    upsert: upsertLocal,
   }
 })
