@@ -16,6 +16,15 @@ export async function listMediaForTune(tuneId: string): Promise<MediaLink[]> {
   return data ?? []
 }
 
+export async function listAllMedia(): Promise<MediaLink[]> {
+  const { data, error } = await supabase
+    .from('media_links')
+    .select('*')
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
 export async function createMediaLink(input: MediaLinkInsert): Promise<MediaLink> {
   const { data, error } = await supabase
     .from('media_links')

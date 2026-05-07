@@ -16,7 +16,7 @@ import TuneList from '@/components/TuneList.vue'
 import TuneEditor, { type NewMediaRow } from '@/components/TuneEditor.vue'
 import TuneImportDialog from '@/components/TuneImportDialog.vue'
 import { useAuthStore } from '@/stores/auth'
-import { createMediaLink } from '@/services/media'
+import { createMediaLink, listAllMedia } from '@/services/media'
 import type { TuneInsert, TuneUpdate, Tune } from '@/services/tunes'
 import {
   STATUS_OPTIONS,
@@ -41,6 +41,8 @@ const editingTune = ref<Tune | null>(null)
 const importOpen = ref(false)
 const addSortMenu = ref<InstanceType<typeof Menu> | null>(null)
 const filtersOpen = ref(false)
+const sortOpen = ref(false)
+const exporting = ref(false)
 
 onMounted(async () => {
   try {
@@ -116,14 +118,18 @@ function openAdd() {
   editorOpen.value = true
 }
 
-function handleExport() {
+async function handleExport() {
+  if (exporting.value) return
+  exporting.value = true
   try {
-    const csv = tunesToCsv(tunesStore.tunes)
+    const media = await listAllMedia()
+    const csv = tunesToCsv(tunesStore.tunes, media)
     downloadCsv(`tunes-${isoToday()}.csv`, csv)
     toast.add({
       severity: 'success',
       summary: `Exported ${tunesStore.tunes.length} tunes`,
-      life: 2000,
+      detail: media.length ? `${media.length} media link${media.length === 1 ? '' : 's'} included` : undefined,
+      life: 2500,
     })
   } catch (e) {
     toast.add({
@@ -132,6 +138,8 @@ function handleExport() {
       detail: e instanceof Error ? e.message : String(e),
       life: 5000,
     })
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -235,7 +243,8 @@ function openAddSortMenu(event: Event) {
         <Button
           severity="secondary"
           outlined
-          :disabled="!tunesStore.tunes.length"
+          :disabled="!tunesStore.tunes.length || exporting"
+          :loading="exporting"
           aria-label="Export CSV"
           @click="handleExport"
         >
@@ -254,29 +263,48 @@ function openAddSortMenu(event: Event) {
     </div>
 
     <div class="flex items-center justify-between gap-3 sm:hidden">
-      <Button
-        severity="secondary"
-        outlined
-        size="small"
-        :aria-expanded="filtersOpen"
-        @click="filtersOpen = !filtersOpen"
-      >
-        <i class="pi pi-filter mr-2" />
-        Filters
-        <Badge
-          v-if="activeFilterCount"
-          :value="activeFilterCount"
-          severity="info"
-          class="ml-2"
-        />
-        <i :class="['pi text-xs ml-2', filtersOpen ? 'pi-chevron-up' : 'pi-chevron-down']" />
-      </Button>
+      <div class="flex items-center gap-2">
+        <Button
+          severity="secondary"
+          outlined
+          size="small"
+          :aria-expanded="filtersOpen"
+          @click="filtersOpen = !filtersOpen"
+        >
+          <i class="pi pi-filter mr-2" />
+          Filters
+          <Badge
+            v-if="activeFilterCount"
+            :value="activeFilterCount"
+            severity="info"
+            class="ml-2"
+          />
+          <i :class="['pi text-xs ml-2', filtersOpen ? 'pi-chevron-up' : 'pi-chevron-down']" />
+        </Button>
+        <Button
+          severity="secondary"
+          outlined
+          size="small"
+          :aria-expanded="sortOpen"
+          @click="sortOpen = !sortOpen"
+        >
+          <i class="pi pi-sort-alt mr-2" />
+          Sort
+          <Badge
+            v-if="ui.tuneFilters.sortBy.length > 1"
+            :value="ui.tuneFilters.sortBy.length"
+            severity="info"
+            class="ml-2"
+          />
+          <i :class="['pi text-xs ml-2', sortOpen ? 'pi-chevron-up' : 'pi-chevron-down']" />
+        </Button>
+      </div>
       <span class="text-sm text-surface-500 tabular-nums">
         {{ filtered.length }} of {{ tunesStore.tunes.length }}
       </span>
     </div>
 
-    <div :class="{ 'max-sm:hidden': !filtersOpen }" class="space-y-4">
+    <div :class="{ 'max-sm:hidden': !filtersOpen }">
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
       <IconField class="lg:col-span-2">
         <InputIcon class="pi pi-search" />
@@ -326,8 +354,9 @@ function openAddSortMenu(event: Event) {
         class="w-full"
       />
     </div>
+    </div>
 
-    <div class="space-y-2">
+    <div :class="{ 'max-sm:hidden': !sortOpen }" class="space-y-2">
       <div class="flex items-center justify-between text-sm">
         <span class="text-surface-500 font-medium">Sort</span>
         <div class="flex items-center gap-3 text-surface-500">
@@ -407,7 +436,6 @@ function openAddSortMenu(event: Event) {
         </Button>
         <Menu ref="addSortMenu" :model="addSortMenuItems" :popup="true" />
       </div>
-    </div>
     </div>
 
     <div v-if="tunesStore.loading && !tunesStore.initialized" aria-busy="true">
