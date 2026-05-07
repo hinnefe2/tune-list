@@ -262,6 +262,17 @@ function openAddSortMenu(event: Event) {
       </div>
     </div>
 
+    <IconField class="sm:hidden">
+      <InputIcon class="pi pi-search" />
+      <InputText
+        v-model="ui.tuneFilters.search"
+        placeholder="Search name, aka, notes…"
+        class="w-full"
+        enterkeyhint="search"
+        @keydown.enter.prevent="(e: KeyboardEvent) => (e.target as HTMLElement).blur()"
+      />
+    </IconField>
+
     <div class="flex items-center justify-between gap-3 sm:hidden">
       <div class="flex items-center gap-2">
         <Button
@@ -306,7 +317,7 @@ function openAddSortMenu(event: Event) {
 
     <div :class="{ 'max-sm:hidden': !filtersOpen }">
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-      <IconField class="lg:col-span-2">
+      <IconField class="lg:col-span-2 max-sm:hidden">
         <InputIcon class="pi pi-search" />
         <InputText
           v-model="ui.tuneFilters.search"
