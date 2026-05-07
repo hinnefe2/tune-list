@@ -9,11 +9,7 @@ import type { Tune, TuneInsert, TuneUpdate } from '@/services/tunes'
 import type { MediaKind } from '@/services/media'
 import type { Source } from '@/services/sources'
 import type { TuneSourceWithSource } from '@/services/tune-sources'
-import {
-  COMMON_KEYS,
-  COMMON_TUNINGS,
-  STATUS_OPTIONS,
-} from '@/lib/tune-options'
+import { COMMON_TUNINGS, STATUS_OPTIONS } from '@/lib/tune-options'
 import { MEDIA_KIND_OPTIONS, inferKindFromUrl } from '@/lib/media-helpers'
 import { SOURCE_KIND_ICON } from '@/lib/source-options'
 import SourcePicker from '@/components/SourcePicker.vue'
@@ -99,7 +95,13 @@ watch(
   { immediate: true },
 )
 
-const keyOptions = COMMON_KEYS.map((k) => ({ value: k, label: k }))
+const keyOptions = computed(() => {
+  const set = new Set<string>()
+  for (const t of tunesStore.tunes) if (t.key) set.add(t.key)
+  return Array.from(set)
+    .sort()
+    .map((k) => ({ value: k, label: k }))
+})
 const tuningOptions = COMMON_TUNINGS.map((t) => ({ value: t, label: t }))
 
 function addMediaRow() {

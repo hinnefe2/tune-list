@@ -10,7 +10,6 @@ import { useSourcesStore } from '@/stores/sources'
 import { useAuthStore } from '@/stores/auth'
 import { linkTuneSource } from '@/services/tune-sources'
 import type { Source } from '@/services/sources'
-import { COMMON_KEYS } from '@/lib/tune-options'
 import { SOURCE_KIND_ICON, SOURCE_KIND_LABEL } from '@/lib/source-options'
 import SourcePicker from '@/components/SourcePicker.vue'
 import AudioRecorder from '@/components/AudioRecorder.vue'
@@ -35,7 +34,13 @@ const saving = ref(false)
 const nameInput = ref<InstanceType<typeof InputText> | null>(null)
 const stagedRecording = ref<RecorderResult | null>(null)
 
-const keyOptions = COMMON_KEYS.map((k) => ({ value: k, label: k }))
+const keyOptions = computed(() => {
+  const set = new Set<string>()
+  for (const t of tunesStore.tunes) if (t.key) set.add(t.key)
+  return Array.from(set)
+    .sort()
+    .map((k) => ({ value: k, label: k }))
+})
 
 const duplicateMatches = computed(() => findCandidates(name.value, tunesStore.tunes))
 
