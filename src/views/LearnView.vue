@@ -5,9 +5,9 @@ import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Skeleton from 'primevue/skeleton'
 import { useTunesStore } from '@/stores/tunes'
-import { setTunePriorities, type Tune } from '@/services/tunes'
+import { setTunePriorities, type Tune, type TuneStatus } from '@/services/tunes'
 import { listAllMedia, type MediaLink } from '@/services/media'
-import { STATUS_BADGE, STATUS_LABEL } from '@/lib/tune-options'
+import { STATUS_BADGE, STATUS_LABEL, STATUS_OPTIONS } from '@/lib/tune-options'
 import MediaEmbed from '@/components/MediaEmbed.vue'
 import { useDelayed } from '@/composables/useDelayed'
 
@@ -147,6 +147,38 @@ function moveToBottom(idx: number) {
   next.push(item)
   void applyOrder(next)
 }
+
+async function setStatus(tune: Tune, next: TuneStatus) {
+  if (tune.status === next) return
+  try {
+    const updated = await tunesStore.update(tune.id, { status: next })
+    // If the new status leaves the Learn-eligible set, drop the tune from the
+    // local list immediately so the user sees the row disappear; otherwise
+    // patch the row in place.
+    if (next === 'wishlist' || next === 'learning') {
+      orderedTunes.value = orderedTunes.value.map((t) =>
+        t.id === tune.id ? updated : t,
+      )
+    } else {
+      orderedTunes.value = orderedTunes.value.filter((t) => t.id !== tune.id)
+      const nextExpanded = new Set(expanded.value)
+      nextExpanded.delete(tune.id)
+      expanded.value = nextExpanded
+    }
+    toast.add({
+      severity: 'success',
+      summary: `Moved to ${STATUS_LABEL[next]}`,
+      life: 1800,
+    })
+  } catch (e) {
+    toast.add({
+      severity: 'error',
+      summary: 'Status change failed',
+      detail: e instanceof Error ? e.message : String(e),
+      life: 5000,
+    })
+  }
+}
 </script>
 
 <template>
@@ -251,8 +283,25 @@ function moveToBottom(idx: number) {
 
         <div
           v-if="expanded.has(tune.id)"
-          class="border-t border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-950 px-4 py-3 space-y-3"
+          class="bg-surface-50 dark:bg-surface-950 px-4 py-3 space-y-3"
         >
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button
+              v-for="opt in STATUS_OPTIONS"
+              :key="opt.value"
+              type="button"
+              :aria-pressed="tune.status === opt.value"
+              :class="[
+                'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium transition',
+                tune.status === opt.value
+                  ? STATUS_BADGE[opt.value]
+                  : 'bg-transparent text-surface-500 dark:text-surface-400 ring-1 ring-inset ring-surface-300 dark:ring-surface-700 hover:bg-surface-100 dark:hover:bg-surface-900',
+              ]"
+              @click="setStatus(tune, opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
           <ul v-if="(mediaByTune.get(tune.id) ?? []).length" class="space-y-4">
             <li v-for="m in mediaByTune.get(tune.id)" :key="m.id">
               <MediaEmbed :media="m" />
