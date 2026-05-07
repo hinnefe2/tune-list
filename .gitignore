@@ -33,6 +33,9 @@ npm-debug.log*
 # Personal setup notes (may contain secrets while in progress)
 docs/setup.md
 
+# Local "tickets" — informal notes on follow-up work
+tickets/
+
 # Vim swap/undo files
 *.sw[a-p]
 *.un~
