@@ -1,6 +1,8 @@
 import Papa from 'papaparse'
 import type { TuneInsert, TuneStatus } from '@/services/tunes'
+import type { MediaKind } from '@/services/media'
 import { STATUS_OPTIONS } from '@/lib/tune-options'
+import { inferKindFromUrl } from '@/lib/media-helpers'
 
 const VALID_STATUSES = new Set<TuneStatus>(STATUS_OPTIONS.map((o) => o.value))
 
@@ -26,6 +28,19 @@ const FIELD_ALIASES: Record<string, string> = {
   level: 'status',
   notes: 'notes',
   comments: 'notes',
+  source: 'source',
+  sources: 'source',
+  'heard at': 'source',
+  audio_url: 'audio_url',
+  'audio url': 'audio_url',
+  'audio link': 'audio_url',
+  sheet_url: 'sheet_url',
+  'sheet url': 'sheet_url',
+  'sheet music link': 'sheet_url',
+  'sheet music url': 'sheet_url',
+  looptube_url: 'looptube_url',
+  'looptube url': 'looptube_url',
+  looptube: 'looptube_url',
 }
 
 function normalizeHeader(h: string): string {
@@ -53,8 +68,15 @@ function coerceStatus(raw: string | undefined): { value: TuneStatus; defaulted: 
   return { value: 'wishlist', defaulted: true }
 }
 
+export interface ParsedMediaLink {
+  kind: MediaKind
+  url: string
+}
+
 export interface ParsedTune {
   insert: Omit<TuneInsert, 'user_id'>
+  sourceNames: string[]
+  mediaLinks: ParsedMediaLink[]
   warnings: string[]
 }
 
@@ -120,7 +142,22 @@ export async function parseTunesCsv(file: File): Promise<ParseResult> {
             notes: (get('notes') ?? '').trim() || null,
           }
 
-          valid.push({ insert, warnings })
+          const sourceNames = splitArray(get('source') ?? '')
+
+          const mediaLinks: ParsedMediaLink[] = []
+          const audioUrl = (get('audio_url') ?? '').trim()
+          if (audioUrl) {
+            // YouTube/Spotify links inferred; otherwise treat as plain audio.
+            const inferred = inferKindFromUrl(audioUrl)
+            const kind: MediaKind = inferred === 'other' ? 'audio' : inferred
+            mediaLinks.push({ kind, url: audioUrl })
+          }
+          const sheetUrl = (get('sheet_url') ?? '').trim()
+          if (sheetUrl) mediaLinks.push({ kind: 'sheet_music', url: sheetUrl })
+          const looptubeUrl = (get('looptube_url') ?? '').trim()
+          if (looptubeUrl) mediaLinks.push({ kind: 'looptube', url: looptubeUrl })
+
+          valid.push({ insert, sourceNames, mediaLinks, warnings })
         })
 
         resolve({

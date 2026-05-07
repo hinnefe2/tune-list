@@ -7,11 +7,17 @@ import Message from 'primevue/message'
 import { useToast } from 'primevue/usetoast'
 import { parseTunesCsv, type ParseResult } from '@/lib/csv-import'
 import { useTunesStore } from '@/stores/tunes'
+import { useSourcesStore } from '@/stores/sources'
+import { useAuthStore } from '@/stores/auth'
+import { linkTuneSource } from '@/services/tune-sources'
+import { createMediaLink } from '@/services/media'
 import { STATUS_LABEL } from '@/lib/tune-options'
 
 const visible = defineModel<boolean>('visible', { required: true })
 
 const tunesStore = useTunesStore()
+const sourcesStore = useSourcesStore()
+const auth = useAuthStore()
 const toast = useToast()
 
 const file = ref<File | null>(null)
@@ -53,17 +59,85 @@ const warningCount = computed(
 )
 
 async function handleImport() {
-  if (!parseResult.value) return
+  if (!parseResult.value || !auth.user) return
   importing.value = true
   errorMsg.value = null
   try {
-    const inserts = parseResult.value.valid.map((r) => r.insert)
+    const userId = auth.user.id
+    const parsed = parseResult.value.valid
+    const inserts = parsed.map((r) => r.insert)
     const created = await tunesStore.createMany(inserts)
+
+    // Bulk-insert preserves input order. Walk created/parsed in lockstep to
+    // attach sources and media links on a best-effort basis — a single failed
+    // link shouldn't abort the rest of the import.
+    if (!sourcesStore.initialized) await sourcesStore.init()
+    const sourcesByName = new Map<string, string>()
+    for (const s of sourcesStore.sources) sourcesByName.set(s.name, s.id)
+
+    let linkedSourceCount = 0
+    let mediaCount = 0
+    const linkErrors: string[] = []
+
+    for (let i = 0; i < created.length; i++) {
+      const tune = created[i]
+      const row = parsed[i]
+      if (!tune || !row) continue
+
+      for (const name of row.sourceNames) {
+        try {
+          let sourceId = sourcesByName.get(name)
+          if (!sourceId) {
+            const newSource = await sourcesStore.create({ name, kind: 'other' })
+            sourceId = newSource.id
+            sourcesByName.set(name, sourceId)
+          }
+          await linkTuneSource({
+            user_id: userId,
+            tune_id: tune.id,
+            source_id: sourceId,
+            heard_on: null,
+            notes: null,
+          })
+          linkedSourceCount++
+        } catch (e) {
+          linkErrors.push(`${tune.name} → source "${name}": ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+
+      for (const media of row.mediaLinks) {
+        try {
+          await createMediaLink({
+            user_id: userId,
+            tune_id: tune.id,
+            kind: media.kind,
+            url: media.url,
+            storage_path: null,
+          })
+          mediaCount++
+        } catch (e) {
+          linkErrors.push(`${tune.name} → ${media.kind}: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+    }
+
+    const detailParts: string[] = []
+    if (linkedSourceCount) detailParts.push(`${linkedSourceCount} source link${linkedSourceCount === 1 ? '' : 's'}`)
+    if (mediaCount) detailParts.push(`${mediaCount} media link${mediaCount === 1 ? '' : 's'}`)
     toast.add({
       severity: 'success',
       summary: `Imported ${created.length} tune${created.length === 1 ? '' : 's'}`,
-      life: 3000,
+      detail: detailParts.length ? `Also added ${detailParts.join(' and ')}.` : undefined,
+      life: 4000,
     })
+    if (linkErrors.length) {
+      toast.add({
+        severity: 'warn',
+        summary: `${linkErrors.length} link${linkErrors.length === 1 ? '' : 's'} failed`,
+        detail: linkErrors.slice(0, 3).join('\n'),
+        life: 8000,
+      })
+    }
     visible.value = false
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : String(e)
@@ -91,9 +165,14 @@ async function handleImport() {
         <span class="font-mono text-xs">tuning</span>,
         <span class="font-mono text-xs">genre</span>,
         <span class="font-mono text-xs">status</span>,
-        <span class="font-mono text-xs">notes</span>. Use
+        <span class="font-mono text-xs">notes</span>,
+        <span class="font-mono text-xs">source</span>,
+        <span class="font-mono text-xs">audio_url</span>,
+        <span class="font-mono text-xs">sheet_url</span>,
+        <span class="font-mono text-xs">looptube_url</span>. Use
         <span class="font-mono text-xs">|</span> inside a cell to separate multiple values
-        (e.g. <span class="font-mono text-xs">A|G</span> for alt_keys).
+        (e.g. <span class="font-mono text-xs">A|G</span> for alt_keys, or two source names).
+        Sources are matched by name and created as kind <span class="font-mono text-xs">other</span> if new.
       </p>
 
       <div v-if="!parseResult" class="flex items-center gap-3">
