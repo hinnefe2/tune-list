@@ -108,6 +108,9 @@ function skipCurrent() {
   <div class="mx-auto max-w-2xl px-4 py-6 space-y-6">
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-semibold">Practice</h1>
+      <p class="text-sm text-surface-500">
+        Practice and remember tunes you already know here.
+      </p>
       <div v-if="dueCards.length && !isComplete" class="text-sm text-surface-500 tabular-nums">
         {{ currentIndex + 1 }} / {{ dueCards.length }}
       </div>

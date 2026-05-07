@@ -104,8 +104,10 @@ function onMediaUrlInput(idx: number, value: string) {
   const row = mediaRows.value[idx]
   if (!row) return
   row.url = value
-  // Auto-classify if the user hasn't manually picked something specific yet.
-  if (value && row.kind === 'video') {
+  // Whenever the URL points at a recognized platform (YouTube, Spotify,
+  // looptube), set the kind from it. The Type select stays editable for
+  // anything we can't infer.
+  if (value) {
     const inferred = inferKindFromUrl(value)
     if (inferred !== 'other') row.kind = inferred
   }
@@ -272,13 +274,6 @@ async function handleSubmit() {
       </div>
       <ol v-if="mediaRows.length" class="space-y-2">
         <li v-for="(row, idx) in mediaRows" :key="idx" class="flex items-start gap-2">
-          <Select
-            v-model="row.kind"
-            :options="MEDIA_KIND_OPTIONS"
-            option-label="label"
-            option-value="value"
-            class="!w-44"
-          />
           <InputText
             :model-value="row.url"
             placeholder="https://…"
@@ -286,6 +281,13 @@ async function handleSubmit() {
             autocapitalize="off"
             autocomplete="off"
             @update:model-value="(v) => onMediaUrlInput(idx, v ?? '')"
+          />
+          <Select
+            v-model="row.kind"
+            :options="MEDIA_KIND_OPTIONS"
+            option-label="label"
+            option-value="value"
+            class="!w-44"
           />
           <Button
             type="button"
