@@ -108,11 +108,18 @@ async function handleSave(payload: TuneInsert | TuneUpdate, isUpdate: boolean) {
   // Edit mode here doesn't surface inline media rows; the third emit arg
   // (always []) is intentionally ignored — media is managed below.
   if (!isUpdate || !tune.value) return
+  const previousStatus = tune.value.status
   try {
     const updated = await tunesStore.update(tune.value.id, payload as TuneUpdate)
     tune.value = updated
     editorOpen.value = false
     toast.add({ severity: 'success', summary: 'Tune updated', life: 2000 })
+    // The ensure_default_cards trigger seeds A/B/Key cards when a tune
+    // first enters Learning. Refetch so the toggles reflect them without
+    // requiring a page reload.
+    if (updated.status === 'learning' && previousStatus !== 'learning') {
+      cards.value = await listCardsForTune(updated.id)
+    }
   } catch (e) {
     toast.add({
       severity: 'error',
