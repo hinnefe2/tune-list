@@ -12,6 +12,7 @@ import type { Tune } from '@/services/tunes'
 import type { MediaLink } from '@/services/media'
 import type { Rating } from '@/composables/useSpacedRepetition'
 import ReviewCard from '@/components/ReviewCard.vue'
+import Metronome from '@/components/Metronome.vue'
 
 const tunesStore = useTunesStore()
 const auth = useAuthStore()
@@ -111,6 +112,8 @@ function skipCurrent() {
         {{ currentIndex + 1 }} / {{ dueCards.length }}
       </div>
     </div>
+
+    <Metronome />
 
     <div v-if="loading" class="py-16 text-center text-surface-500">
       <i class="pi pi-spin pi-spinner mr-2" /> Loading…
