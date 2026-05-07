@@ -61,6 +61,10 @@ function splitArray(raw: string): string[] {
     .filter(Boolean)
 }
 
+function looksLikeUrl(raw: string): boolean {
+  return /^https?:\/\//i.test(raw.trim())
+}
+
 function coerceStatus(raw: string | undefined): { value: TuneStatus; defaulted: boolean } {
   if (!raw) return { value: 'wishlist', defaulted: false }
   const normalized = raw.trim().toLowerCase().replace(/[\s-]/g, '_') as TuneStatus
@@ -131,6 +135,47 @@ export async function parseTunesCsv(file: File): Promise<ParseResult> {
             warnings.push(`unknown status "${get('status')}" → wishlist`)
           }
 
+          const sourceNames = splitArray(get('source') ?? '')
+
+          // media_links require a real URL. Free text in those columns
+          // (Google Sheets smart chips lose their underlying URL on CSV
+          // export, leaving only the label) gets stashed in notes instead so
+          // we don't insert garbage into the link table.
+          const mediaLinks: ParsedMediaLink[] = []
+          const noteSpillover: string[] = []
+          const audioRaw = (get('audio_url') ?? '').trim()
+          if (audioRaw) {
+            if (looksLikeUrl(audioRaw)) {
+              const inferred = inferKindFromUrl(audioRaw)
+              const kind: MediaKind = inferred === 'other' ? 'audio' : inferred
+              mediaLinks.push({ kind, url: audioRaw })
+            } else {
+              noteSpillover.push(`Audio: ${audioRaw}`)
+              warnings.push(`audio_url isn't a URL — moved to notes`)
+            }
+          }
+          const sheetRaw = (get('sheet_url') ?? '').trim()
+          if (sheetRaw) {
+            if (looksLikeUrl(sheetRaw)) {
+              mediaLinks.push({ kind: 'sheet_music', url: sheetRaw })
+            } else {
+              noteSpillover.push(`Sheet: ${sheetRaw}`)
+              warnings.push(`sheet_url isn't a URL — moved to notes`)
+            }
+          }
+          const looptubeRaw = (get('looptube_url') ?? '').trim()
+          if (looptubeRaw) {
+            if (looksLikeUrl(looptubeRaw)) {
+              mediaLinks.push({ kind: 'looptube', url: looptubeRaw })
+            } else {
+              noteSpillover.push(`LoopTube: ${looptubeRaw}`)
+              warnings.push(`looptube_url isn't a URL — moved to notes`)
+            }
+          }
+
+          const baseNotes = (get('notes') ?? '').trim()
+          const combinedNotes = [baseNotes, ...noteSpillover].filter(Boolean).join('\n')
+
           const insert: Omit<TuneInsert, 'user_id'> = {
             name,
             aka: splitArray(get('aka') ?? ''),
@@ -139,23 +184,8 @@ export async function parseTunesCsv(file: File): Promise<ParseResult> {
             tuning: (get('tuning') ?? '').trim() || 'GDAE',
             genre: (get('genre') ?? '').trim() || null,
             status: status.value,
-            notes: (get('notes') ?? '').trim() || null,
+            notes: combinedNotes || null,
           }
-
-          const sourceNames = splitArray(get('source') ?? '')
-
-          const mediaLinks: ParsedMediaLink[] = []
-          const audioUrl = (get('audio_url') ?? '').trim()
-          if (audioUrl) {
-            // YouTube/Spotify links inferred; otherwise treat as plain audio.
-            const inferred = inferKindFromUrl(audioUrl)
-            const kind: MediaKind = inferred === 'other' ? 'audio' : inferred
-            mediaLinks.push({ kind, url: audioUrl })
-          }
-          const sheetUrl = (get('sheet_url') ?? '').trim()
-          if (sheetUrl) mediaLinks.push({ kind: 'sheet_music', url: sheetUrl })
-          const looptubeUrl = (get('looptube_url') ?? '').trim()
-          if (looptubeUrl) mediaLinks.push({ kind: 'looptube', url: looptubeUrl })
 
           valid.push({ insert, sourceNames, mediaLinks, warnings })
         })
