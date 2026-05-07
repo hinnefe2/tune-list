@@ -8,11 +8,17 @@ import App from './App.vue'
 import { router } from './router'
 import { primevueOptions } from './primevue'
 import { useAuthStore } from './stores/auth'
+import { initTheme } from './composables/useTheme'
 
 import 'primeicons/primeicons.css'
 import './style.css'
 
 async function bootstrap() {
+  // Resolve the dark/light class on <html> before mount so the first paint
+  // already matches the user's stored preference (or system pref on first
+  // visit). Avoids a brief flash of the wrong theme.
+  initTheme()
+
   const app = createApp(App)
   const pinia = createPinia()
 

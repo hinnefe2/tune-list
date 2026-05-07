@@ -2,10 +2,12 @@
 import { computed, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useTheme } from '@/composables/useTheme'
 import Menu from 'primevue/menu'
 
 const auth = useAuthStore()
 const router = useRouter()
+const { isDark, toggle: toggleTheme } = useTheme()
 
 const menu = ref<InstanceType<typeof Menu> | null>(null)
 const profileItems = computed(() => [
@@ -13,6 +15,11 @@ const profileItems = computed(() => [
     label: auth.profile?.display_name ?? auth.user?.email ?? 'Profile',
     items: [
       { label: 'Profile', icon: 'pi pi-user', command: () => router.push({ name: 'profile' }) },
+      {
+        label: isDark.value ? 'Light mode' : 'Dark mode',
+        icon: isDark.value ? 'pi pi-sun' : 'pi pi-moon',
+        command: () => toggleTheme(),
+      },
       { label: 'Sign out', icon: 'pi pi-sign-out', command: () => signOut() },
     ],
   },

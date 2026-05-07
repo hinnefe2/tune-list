@@ -25,10 +25,10 @@ export const primevueOptions = {
   theme: {
     preset: TunePreset,
     options: {
-      // 'system' follows prefers-color-scheme, matching Tailwind v4's default
-      // media-query dark mode. With '.dark' (manual selector) we'd render
-      // PrimeVue components in light mode while Tailwind painted the page dark.
-      darkModeSelector: 'system',
+      // Manual class-based selector. The same .dark class drives Tailwind's
+      // dark variant (see @custom-variant in style.css) so a single toggle
+      // controls both layers.
+      darkModeSelector: '.dark',
       cssLayer: {
         name: 'primevue',
         // Tailwind utilities live in the `utilities` layer; keeping PrimeVue
