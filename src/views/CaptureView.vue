@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
@@ -24,7 +23,6 @@ import { RouterLink } from 'vue-router'
 const tunesStore = useTunesStore()
 const sourcesStore = useSourcesStore()
 const auth = useAuthStore()
-const router = useRouter()
 const toast = useToast()
 
 const LAST_SOURCE_KEY = 'tune-list:capture-last-source'
@@ -152,23 +150,17 @@ function clearSource() {
 function handleSourceSelect(s: Source) {
   selectedSource.value = s
 }
-
-function done() {
-  router.push({ name: 'tunes' })
-}
 </script>
 
 <template>
   <div class="mx-auto max-w-lg px-4 py-6 space-y-5">
-    <div class="flex items-center justify-between">
+    <header class="space-y-1">
       <h1 class="text-2xl font-semibold">Capture</h1>
-      <Button text size="small" @click="done">Done</Button>
-    </div>
-
-    <p class="text-sm text-surface-500">
-      Quick add for a tune you just heard. Saves as <span class="font-medium">Wishlist</span>;
-      polish it later from the tunes list.
-    </p>
+      <p class="text-sm text-surface-500">
+        Quick add for a tune you just heard. Saves as <span class="font-medium">Wishlist</span>;
+        polish it later from the tunes list.
+      </p>
+    </header>
 
     <form class="space-y-4" @submit.prevent="handleSave">
       <div class="space-y-1">

@@ -106,15 +106,17 @@ function skipCurrent() {
 
 <template>
   <div class="mx-auto max-w-2xl px-4 py-6 space-y-6">
-    <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-semibold">Practice</h1>
-      <p class="text-sm text-surface-500">
-        Practice and remember tunes you already know here.
-      </p>
-      <div v-if="dueCards.length && !isComplete" class="text-sm text-surface-500 tabular-nums">
-        {{ currentIndex + 1 }} / {{ dueCards.length }}
+    <header class="space-y-1">
+      <div class="flex items-baseline justify-between gap-3">
+        <h1 class="text-2xl font-semibold">Practice</h1>
+        <div v-if="dueCards.length && !isComplete" class="text-sm text-surface-500 tabular-nums">
+          {{ currentIndex + 1 }} / {{ dueCards.length }}
+        </div>
       </div>
-    </div>
+      <p class="text-sm text-surface-500">
+        Practice and remember tunes you already know here. Practice cards will re-appear more or less frequently based on how hard you find it to remember them.
+      </p>
+    </header>
 
     <Metronome />
 
