@@ -14,8 +14,10 @@ const emit = defineEmits<{
   'update:result': [value: RecorderResult | null]
 }>()
 
+const effectiveMaxSeconds = computed(() => props.maxSeconds ?? 120)
+
 const { state, elapsedSeconds, errorMessage, result, start, stop, discard } =
-  useAudioRecorder({ maxSeconds: props.maxSeconds })
+  useAudioRecorder({ maxSeconds: effectiveMaxSeconds.value })
 
 // Mirror local state up to the parent without echoing parent-driven resets back.
 watch(result, (r) => {
@@ -47,10 +49,28 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-const remainingSeconds = computed(() => {
-  const max = props.maxSeconds ?? 60
-  return Math.max(0, max - elapsedSeconds.value)
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const remainingSeconds = computed(() =>
+  Math.max(0, effectiveMaxSeconds.value - elapsedSeconds.value),
+)
+
+const maxLabel = computed(() => {
+  const m = effectiveMaxSeconds.value
+  if (m % 60 === 0) {
+    const min = m / 60
+    return `${min} min`
+  }
+  return `${m}s`
 })
+
+const fileSizeLabel = computed(() =>
+  result.value ? formatBytes(result.value.blob.size) : null,
+)
 
 async function handleStart() {
   await start()
@@ -118,8 +138,18 @@ function handleDiscard() {
         <span class="font-mono text-sm tabular-nums text-surface-500">
           {{ formatTime(result.durationSeconds) }}
         </span>
+        <span v-if="fileSizeLabel" class="text-xs text-surface-500">
+          {{ fileSizeLabel }}
+        </span>
       </template>
     </div>
+
+    <p
+      v-if="state === 'idle'"
+      class="text-xs text-surface-500"
+    >
+      Recordings are capped at {{ maxLabel }}.
+    </p>
 
     <audio
       v-if="state === 'stopped' && previewUrl"

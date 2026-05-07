@@ -10,7 +10,7 @@ export interface RecorderResult {
 }
 
 export interface UseAudioRecorderOptions {
-  /** Soft cap; recorder auto-stops at this many seconds. Default 60. */
+  /** Soft cap; recorder auto-stops at this many seconds. Default 120. */
   maxSeconds?: number
 }
 
@@ -47,7 +47,7 @@ function pickMime(): { mime: string; ext: string } | null {
 }
 
 export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudioRecorder {
-  const maxSeconds = options.maxSeconds ?? 60
+  const maxSeconds = options.maxSeconds ?? 120
 
   const state = ref<RecorderState>('idle')
   const elapsedSeconds = ref(0)
