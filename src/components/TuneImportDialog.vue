@@ -24,6 +24,9 @@ const file = ref<File | null>(null)
 const parsing = ref(false)
 const parseResult = ref<ParseResult | null>(null)
 const importing = ref(false)
+const importPhase = ref<'idle' | 'creating' | 'linking'>('idle')
+const importDone = ref(0)
+const importTotal = ref(0)
 const errorMsg = ref<string | null>(null)
 
 watch(visible, (v) => {
@@ -33,6 +36,9 @@ watch(visible, (v) => {
     errorMsg.value = null
     parsing.value = false
     importing.value = false
+    importPhase.value = 'idle'
+    importDone.value = 0
+    importTotal.value = 0
   }
 })
 
@@ -62,6 +68,9 @@ async function handleImport() {
   if (!parseResult.value || !auth.user) return
   importing.value = true
   errorMsg.value = null
+  importPhase.value = 'creating'
+  importDone.value = 0
+  importTotal.value = parseResult.value.valid.length
   try {
     const userId = auth.user.id
     const parsed = parseResult.value.valid
@@ -79,11 +88,21 @@ async function handleImport() {
     let mediaCount = 0
     const linkErrors: string[] = []
 
+    importPhase.value = 'linking'
+    importDone.value = 0
+
     for (let i = 0; i < created.length; i++) {
       const tune = created[i]
       const row = parsed[i]
-      if (!tune || !row) continue
+      if (!tune || !row) {
+        importDone.value = i + 1
+        continue
+      }
 
+      // New sources have to be resolved serially so two tunes referencing the
+      // same brand-new name don't both try to create it. Once we know the
+      // source id, the actual link insert can run alongside the media writes.
+      const sourceIds: string[] = []
       for (const name of row.sourceNames) {
         try {
           let sourceId = sourcesByName.get(name)
@@ -92,33 +111,56 @@ async function handleImport() {
             sourceId = newSource.id
             sourcesByName.set(name, sourceId)
           }
-          await linkTuneSource({
+          sourceIds.push(sourceId)
+        } catch (e) {
+          linkErrors.push(`${tune.name} → source "${name}": ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+
+      const linkPromises: Promise<{ kind: 'source' | 'media'; ok: boolean; label: string; err?: unknown }>[] = []
+      sourceIds.forEach((sourceId, j) => {
+        const name = row.sourceNames[j]
+        linkPromises.push(
+          linkTuneSource({
             user_id: userId,
             tune_id: tune.id,
             source_id: sourceId,
             heard_on: null,
             notes: null,
           })
-          linkedSourceCount++
-        } catch (e) {
-          linkErrors.push(`${tune.name} → source "${name}": ${e instanceof Error ? e.message : String(e)}`)
-        }
-      }
-
+            .then(() => ({ kind: 'source' as const, ok: true, label: name }))
+            .catch((err) => ({ kind: 'source' as const, ok: false, label: name, err })),
+        )
+      })
       for (const media of row.mediaLinks) {
-        try {
-          await createMediaLink({
+        linkPromises.push(
+          createMediaLink({
             user_id: userId,
             tune_id: tune.id,
             kind: media.kind,
             url: media.url,
             storage_path: null,
           })
-          mediaCount++
-        } catch (e) {
-          linkErrors.push(`${tune.name} → ${media.kind}: ${e instanceof Error ? e.message : String(e)}`)
+            .then(() => ({ kind: 'media' as const, ok: true, label: media.kind }))
+            .catch((err) => ({ kind: 'media' as const, ok: false, label: media.kind, err })),
+        )
+      }
+      const results = await Promise.all(linkPromises)
+      for (const r of results) {
+        if (r.ok) {
+          if (r.kind === 'source') linkedSourceCount++
+          else mediaCount++
+        } else {
+          const detail = r.err instanceof Error ? r.err.message : String(r.err)
+          linkErrors.push(
+            r.kind === 'source'
+              ? `${tune.name} → source "${r.label}": ${detail}`
+              : `${tune.name} → ${r.label}: ${detail}`,
+          )
         }
       }
+
+      importDone.value = i + 1
     }
 
     const detailParts: string[] = []
@@ -143,6 +185,7 @@ async function handleImport() {
     errorMsg.value = e instanceof Error ? e.message : String(e)
   } finally {
     importing.value = false
+    importPhase.value = 'idle'
   }
 }
 </script>
@@ -154,6 +197,7 @@ async function handleImport() {
     modal
     :style="{ width: 'min(680px, 95vw)' }"
     :dismissable-mask="!importing"
+    :closable="!importing"
   >
     <div class="space-y-4">
       <p class="text-sm text-surface-600 dark:text-surface-400">
@@ -246,6 +290,33 @@ async function handleImport() {
           Parse errors: {{ parseResult.errors.slice(0, 3).join('; ') }}
           <span v-if="parseResult.errors.length > 3">…and {{ parseResult.errors.length - 3 }} more.</span>
         </Message>
+
+        <div
+          v-if="importing"
+          class="rounded border border-surface-200 dark:border-surface-800 p-3 text-sm space-y-2"
+          aria-live="polite"
+        >
+          <div class="flex items-center gap-2">
+            <i class="pi pi-spin pi-spinner" />
+            <span v-if="importPhase === 'creating'">
+              Creating {{ importTotal }} tune{{ importTotal === 1 ? '' : 's' }}…
+            </span>
+            <span v-else-if="importPhase === 'linking'">
+              Linking sources and media… {{ importDone }} / {{ importTotal }}
+            </span>
+            <span v-else>Working…</span>
+          </div>
+          <div
+            v-if="importPhase === 'linking' && importTotal > 0"
+            class="h-1.5 rounded bg-surface-200 dark:bg-surface-800 overflow-hidden"
+          >
+            <div
+              class="h-full bg-primary-500 transition-[width] duration-200"
+              :style="{ width: `${Math.round((importDone / importTotal) * 100)}%` }"
+            />
+          </div>
+          <p class="text-xs text-surface-500">Don't close this dialog until it finishes.</p>
+        </div>
       </template>
     </div>
 
@@ -257,7 +328,7 @@ async function handleImport() {
         <Button
           v-if="parseResult"
           :loading="importing"
-          :disabled="parseResult.valid.length === 0"
+          :disabled="parseResult.valid.length === 0 || importing"
           @click="handleImport"
         >
           Import {{ parseResult.valid.length }} tune{{ parseResult.valid.length === 1 ? '' : 's' }}
