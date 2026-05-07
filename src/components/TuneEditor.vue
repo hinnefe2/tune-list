@@ -212,12 +212,12 @@ async function handleSubmit() {
 
     <div class="space-y-1">
       <label class="block text-sm font-medium">Alternate keys</label>
-      <InputChips v-model="form.alt_keys" class="w-full" separator="," placeholder="press enter" />
+      <InputChips v-model="form.alt_keys" class="w-full" separator="," />
     </div>
 
     <div class="space-y-1">
       <label class="block text-sm font-medium">Also known as</label>
-      <InputChips v-model="form.aka" class="w-full" separator="," placeholder="press enter" />
+      <InputChips v-model="form.aka" class="w-full" separator="," />
     </div>
 
     <div class="space-y-1">
