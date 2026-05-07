@@ -80,7 +80,7 @@ Every owned table has `user_id`. RLS policies use a `can_view(target_user_id)` p
 - List view with filters (status, key, genre, source) and sort options.
 - Detail view with all media links, sources, notes, review history.
 - Add/edit form (modal off the list view).
-- Status enum: `wishlist` → `learning` → `can_fake` → `can_lead` → `forgotten`.
+- Status enum: `wishlist` → `learning` → `can_follow` → `can_lead` → `forgotten`.
 
 ### Capture flow
 - Mobile-first `/capture` view for fast jam entry.

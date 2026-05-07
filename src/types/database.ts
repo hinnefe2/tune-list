@@ -418,7 +418,7 @@ export type Database = {
       tune_status:
         | "wishlist"
         | "learning"
-        | "can_fake"
+        | "can_follow"
         | "can_lead"
         | "forgotten"
     }
@@ -569,7 +569,7 @@ export const Constants = {
       tune_status: [
         "wishlist",
         "learning",
-        "can_fake",
+        "can_follow",
         "can_lead",
         "forgotten",
       ],
