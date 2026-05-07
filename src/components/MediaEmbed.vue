@@ -87,10 +87,10 @@ const externalUrl = computed(() => {
       />
     </div>
 
-    <div v-else-if="spotify" class="w-full">
+    <div v-else-if="spotify" class="w-full rounded-xl overflow-hidden">
       <iframe
         :src="spotifyEmbedSrc(spotify)"
-        class="w-full"
+        class="w-full block"
         :style="{ height: spotify.type === 'track' ? '152px' : '352px' }"
         frameborder="0"
         allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
