@@ -123,6 +123,48 @@ async function handleSave(payload: TuneInsert | TuneUpdate, isUpdate: boolean) {
   }
 }
 
+async function handleLearnNext() {
+  if (!tune.value) return
+  // Top priority = (current min among wishlist/learning) − 1, falling back
+  // to 1 if nothing has an explicit priority yet. If the tune isn't already
+  // queue-eligible, flip it to wishlist so it shows up there.
+  const others = tunesStore.tunes.filter(
+    (t) =>
+      t.id !== tune.value!.id &&
+      (t.status === 'wishlist' || t.status === 'learning'),
+  )
+  let minPriority = Infinity
+  for (const t of others) {
+    if (t.priority !== null && t.priority < minPriority) minPriority = t.priority
+  }
+  const newPriority = Number.isFinite(minPriority) ? minPriority - 1 : 1
+
+  const patch: TuneUpdate = { priority: newPriority }
+  if (tune.value.status !== 'wishlist' && tune.value.status !== 'learning') {
+    patch.status = 'wishlist'
+  }
+  try {
+    const updated = await tunesStore.update(tune.value.id, patch)
+    tune.value = updated
+    toast.add({
+      severity: 'success',
+      summary: 'Top of Learn queue',
+      detail:
+        patch.status === 'wishlist'
+          ? `Moved to Wishlist and queued first.`
+          : undefined,
+      life: 2200,
+    })
+  } catch (e) {
+    toast.add({
+      severity: 'error',
+      summary: 'Couldn’t bump priority',
+      detail: e instanceof Error ? e.message : String(e),
+      life: 5000,
+    })
+  }
+}
+
 function handleDelete() {
   if (!tune.value) return
   confirm.require({
@@ -437,7 +479,16 @@ function deleteMedia(m: MediaLink) {
             </dd>
           </template>
         </dl>
-        <div class="flex items-center gap-1 shrink-0">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-1 shrink-0">
+          <Button
+            size="small"
+            severity="secondary"
+            outlined
+            aria-label="Move to top of Learn queue"
+            @click="handleLearnNext"
+          >
+            <i class="pi pi-arrow-up mr-2" /> Learn next
+          </Button>
           <Button
             size="small"
             severity="secondary"
