@@ -84,7 +84,13 @@ async function handleSave(payload: SourceInsert | SourceUpdate, isUpdate: boolea
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <IconField class="sm:col-span-2">
         <InputIcon class="pi pi-search" />
-        <InputText v-model="search" placeholder="Search sources…" class="w-full" />
+        <InputText
+          v-model="search"
+          placeholder="Search sources…"
+          class="w-full"
+          enterkeyhint="search"
+          @keydown.enter.prevent="(e: KeyboardEvent) => (e.target as HTMLElement).blur()"
+        />
       </IconField>
       <Select
         v-model="kindFilter"

@@ -207,6 +207,8 @@ function openAddSortMenu(event: Event) {
           v-model="ui.tuneFilters.search"
           placeholder="Search name, aka, notes…"
           class="w-full"
+          enterkeyhint="search"
+          @keydown.enter.prevent="(e: KeyboardEvent) => (e.target as HTMLElement).blur()"
         />
       </IconField>
 
