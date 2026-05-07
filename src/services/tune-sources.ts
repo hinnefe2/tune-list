@@ -40,6 +40,25 @@ export async function linkTuneSource(
   return data as unknown as TuneSourceWithSource
 }
 
+/**
+ * Convenience wrapper for the by-far-most-common shape: link a tune to a
+ * source with no `heard_on` date and no notes. Replaces the inline payload
+ * boilerplate at every call site.
+ */
+export async function linkSourceToTune(
+  userId: string,
+  tuneId: string,
+  sourceId: string,
+): Promise<TuneSourceWithSource> {
+  return linkTuneSource({
+    user_id: userId,
+    tune_id: tuneId,
+    source_id: sourceId,
+    heard_on: null,
+    notes: null,
+  })
+}
+
 export async function unlinkTuneSource(id: string): Promise<void> {
   const { error } = await supabase.from('tune_sources').delete().eq('id', id)
   if (error) throw error

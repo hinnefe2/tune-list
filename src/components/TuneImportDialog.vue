@@ -9,7 +9,7 @@ import { parseTunesCsv, type ParseResult } from '@/lib/csv-import'
 import { useTunesStore } from '@/stores/tunes'
 import { useSourcesStore } from '@/stores/sources'
 import { useAuthStore } from '@/stores/auth'
-import { linkTuneSource } from '@/services/tune-sources'
+import { linkSourceToTune } from '@/services/tune-sources'
 import { createMediaLink } from '@/services/media'
 import { STATUS_LABEL } from '@/lib/tune-options'
 
@@ -121,13 +121,7 @@ async function handleImport() {
       sourceIds.forEach((sourceId, j) => {
         const name = row.sourceNames[j]
         linkPromises.push(
-          linkTuneSource({
-            user_id: userId,
-            tune_id: tune.id,
-            source_id: sourceId,
-            heard_on: null,
-            notes: null,
-          })
+          linkSourceToTune(userId, tune.id, sourceId)
             .then(() => ({ kind: 'source' as const, ok: true, label: name }))
             .catch((err) => ({ kind: 'source' as const, ok: false, label: name, err })),
         )

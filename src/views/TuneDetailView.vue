@@ -14,7 +14,7 @@ import MediaEmbed from '@/components/MediaEmbed.vue'
 import MediaEditor from '@/components/MediaEditor.vue'
 import {
   listTuneSources,
-  linkTuneSource,
+  linkSourceToTune,
   unlinkTuneSource,
   type TuneSourceWithSource,
 } from '@/services/tune-sources'
@@ -203,13 +203,7 @@ async function handleSourceSelected(source: Source) {
   if (!tune.value || !auth.user) return
   if (linkedSourceIds.value.includes(source.id)) return
   try {
-    const link = await linkTuneSource({
-      user_id: auth.user.id,
-      tune_id: tune.value.id,
-      source_id: source.id,
-      heard_on: null,
-      notes: null,
-    })
+    const link = await linkSourceToTune(auth.user.id, tune.value.id, source.id)
     tuneSources.value = [...tuneSources.value, link]
     toast.add({ severity: 'success', summary: `Linked to ${source.name}`, life: 2000 })
   } catch (e) {
