@@ -14,6 +14,10 @@ import type { Source } from '@/services/sources'
 import { COMMON_KEYS } from '@/lib/tune-options'
 import { SOURCE_KIND_ICON, SOURCE_KIND_LABEL } from '@/lib/source-options'
 import SourcePicker from '@/components/SourcePicker.vue'
+import AudioRecorder from '@/components/AudioRecorder.vue'
+import type { RecorderResult } from '@/composables/useAudioRecorder'
+import { uploadRecording } from '@/services/storage'
+import { createRecording } from '@/services/recordings'
 
 const tunesStore = useTunesStore()
 const sourcesStore = useSourcesStore()
@@ -29,6 +33,7 @@ const notes = ref('')
 const selectedSource = ref<Source | null>(null)
 const saving = ref(false)
 const nameInput = ref<InstanceType<typeof InputText> | null>(null)
+const stagedRecording = ref<RecorderResult | null>(null)
 
 const keyOptions = COMMON_KEYS.map((k) => ({ value: k, label: k }))
 
@@ -91,6 +96,26 @@ async function handleSave() {
         })
       }
     }
+    if (stagedRecording.value) {
+      try {
+        const rec = stagedRecording.value
+        const path = await uploadRecording(auth.user.id, rec.blob, rec.ext)
+        await createRecording({
+          user_id: auth.user.id,
+          tune_id: created.id,
+          source_id: selectedSource.value?.id ?? null,
+          storage_path: path,
+          duration_seconds: rec.durationSeconds,
+        })
+      } catch (e) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Tune saved; recording upload failed',
+          detail: e instanceof Error ? e.message : String(e),
+          life: 5000,
+        })
+      }
+    }
     toast.add({
       severity: 'success',
       summary: `"${created.name}" saved`,
@@ -101,6 +126,7 @@ async function handleSave() {
     name.value = ''
     key.value = null
     notes.value = ''
+    stagedRecording.value = null
     focusName()
   } catch (e) {
     toast.add({
@@ -176,6 +202,11 @@ function done() {
           />
         </div>
         <SourcePicker v-else placeholder="Search or create a source…" @select="handleSourceSelect" />
+      </div>
+
+      <div class="space-y-1">
+        <label class="block text-sm font-medium">Recording</label>
+        <AudioRecorder v-model:result="stagedRecording" />
       </div>
 
       <div class="space-y-1">

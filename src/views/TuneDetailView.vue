@@ -28,6 +28,16 @@ import {
   type MediaLinkInsert,
   type MediaLinkUpdate,
 } from '@/services/media'
+import {
+  listRecordingsForTune,
+  createRecording,
+  deleteRecordingRow,
+  type Recording,
+} from '@/services/recordings'
+import { uploadRecording, deleteRecording } from '@/services/storage'
+import RecordingEmbed from '@/components/RecordingEmbed.vue'
+import AudioRecorder from '@/components/AudioRecorder.vue'
+import type { RecorderResult } from '@/composables/useAudioRecorder'
 import { listCardsForTune, setCardEnabled, type Card } from '@/services/cards'
 import { SOURCE_KIND_ICON } from '@/lib/source-options'
 import { MEDIA_KIND_LABEL } from '@/lib/media-helpers'
@@ -48,11 +58,15 @@ const confirm = useConfirm()
 const tune = ref<Tune | null>(null)
 const tuneSources = ref<TuneSourceWithSource[]>([])
 const mediaLinks = ref<MediaLink[]>([])
+const recordings = ref<Recording[]>([])
 const cards = ref<Card[]>([])
 const loading = ref(true)
 const editorOpen = ref(false)
 const mediaEditorOpen = ref(false)
 const editingMedia = ref<MediaLink | null>(null)
+const recorderOpen = ref(false)
+const stagedRecording = ref<RecorderResult | null>(null)
+const savingRecording = ref(false)
 const showSkeleton = useDelayed(loading)
 
 async function load() {
@@ -62,13 +76,15 @@ async function load() {
     const fromStore = tunesStore.getById(props.id)
     tune.value = fromStore ?? (await getTune(props.id))
     if (tune.value) {
-      const [ts, ml, cs] = await Promise.all([
+      const [ts, ml, rs, cs] = await Promise.all([
         listTuneSources(tune.value.id),
         listMediaForTune(tune.value.id),
+        listRecordingsForTune(tune.value.id),
         listCardsForTune(tune.value.id),
       ])
       tuneSources.value = ts
       mediaLinks.value = ml
+      recordings.value = rs
       cards.value = cs
     }
   } catch (e) {
@@ -243,6 +259,74 @@ async function handleCardToggle(kind: CardKind, enabled: boolean) {
   }
 }
 
+function openRecorder() {
+  stagedRecording.value = null
+  recorderOpen.value = true
+}
+
+function closeRecorder() {
+  stagedRecording.value = null
+  recorderOpen.value = false
+}
+
+async function saveStagedRecording() {
+  if (!stagedRecording.value || !tune.value || !auth.user) return
+  savingRecording.value = true
+  try {
+    const rec = stagedRecording.value
+    const path = await uploadRecording(auth.user.id, rec.blob, rec.ext)
+    const created = await createRecording({
+      user_id: auth.user.id,
+      tune_id: tune.value.id,
+      source_id: null,
+      storage_path: path,
+      duration_seconds: rec.durationSeconds,
+    })
+    recordings.value = [created, ...recordings.value]
+    toast.add({ severity: 'success', summary: 'Recording saved', life: 2000 })
+    closeRecorder()
+  } catch (e) {
+    toast.add({
+      severity: 'error',
+      summary: 'Save failed',
+      detail: e instanceof Error ? e.message : String(e),
+      life: 5000,
+    })
+  } finally {
+    savingRecording.value = false
+  }
+}
+
+function deleteRecordingItem(r: Recording) {
+  confirm.require({
+    message: 'Delete this recording? This can\'t be undone.',
+    header: 'Delete recording',
+    icon: 'pi pi-exclamation-triangle',
+    rejectLabel: 'Cancel',
+    acceptLabel: 'Delete',
+    acceptClass: 'p-button-danger',
+    accept: async () => {
+      try {
+        await deleteRecordingRow(r.id)
+        // Storage cleanup is best-effort; the row is gone either way.
+        try {
+          await deleteRecording(r.storage_path)
+        } catch {
+          /* ignore */
+        }
+        recordings.value = recordings.value.filter((x) => x.id !== r.id)
+      } catch (e) {
+        toast.add({
+          severity: 'error',
+          summary: 'Delete failed',
+          detail: e instanceof Error ? e.message : String(e),
+          life: 5000,
+        })
+      }
+    },
+  })
+}
+
 function deleteMedia(m: MediaLink) {
   confirm.require({
     message: `Delete this ${MEDIA_KIND_LABEL[m.kind]} link?`,
@@ -403,6 +487,38 @@ function deleteMedia(m: MediaLink) {
       </section>
 
       <section class="space-y-3 border-t border-surface-200 dark:border-surface-800 pt-5">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-medium text-surface-500">Recordings</h2>
+          <Button size="small" severity="secondary" outlined @click="openRecorder">
+            <i class="pi pi-microphone mr-2" /> Record
+          </Button>
+        </div>
+        <div v-if="!recordings.length" class="text-sm text-surface-500 py-2">
+          No recordings yet.
+        </div>
+        <ul v-else class="space-y-4">
+          <li
+            v-for="r in recordings"
+            :key="r.id"
+            class="border border-surface-200 dark:border-surface-800 rounded p-3 space-y-2"
+          >
+            <div class="flex items-center justify-end">
+              <Button
+                icon="pi pi-trash"
+                text
+                rounded
+                size="small"
+                severity="danger"
+                aria-label="Delete recording"
+                @click="deleteRecordingItem(r)"
+              />
+            </div>
+            <RecordingEmbed :recording="r" />
+          </li>
+        </ul>
+      </section>
+
+      <section class="space-y-3 border-t border-surface-200 dark:border-surface-800 pt-5">
         <h2 class="text-sm font-medium text-surface-500">Practice cards</h2>
         <p v-if="liveTune.status !== 'learning'" class="text-xs text-surface-500">
           Default cards (A part, B part, key) auto-generate when a tune moves to <span class="font-medium">Learning</span>.
@@ -458,6 +574,39 @@ function deleteMedia(m: MediaLink) {
           @save="handleMediaSave"
           @cancel="mediaEditorOpen = false"
         />
+      </Dialog>
+
+      <Dialog
+        v-model:visible="recorderOpen"
+        header="Record audio"
+        modal
+        :style="{ width: 'min(480px, 95vw)' }"
+        :dismissable-mask="!savingRecording"
+        :closable="!savingRecording"
+        @hide="closeRecorder"
+      >
+        <div class="space-y-4">
+          <AudioRecorder v-model:result="stagedRecording" compact />
+          <div class="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              severity="secondary"
+              text
+              :disabled="savingRecording"
+              @click="closeRecorder"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              :disabled="!stagedRecording"
+              :loading="savingRecording"
+              @click="saveStagedRecording"
+            >
+              Save recording
+            </Button>
+          </div>
+        </div>
       </Dialog>
     </template>
   </div>
