@@ -57,3 +57,28 @@ export async function deleteTune(id: string): Promise<void> {
   const { error } = await supabase.from('tunes').delete().eq('id', id)
   if (error) throw error
 }
+
+/**
+ * Set explicit priorities for a list of tunes. The Learn view passes the
+ * full ordered visible list; we walk it with priority = index + 1 so the
+ * user's drag/drop translates directly into a stable sort key.
+ *
+ * Issued as N parallel requests rather than a single statement because
+ * PostgREST can't update multiple rows with different values in one call.
+ * For the active wishlist (typically dozens, occasionally a few hundred)
+ * this is fine.
+ */
+export async function setTunePriorities(updates: { id: string; priority: number }[]): Promise<void> {
+  if (updates.length === 0) return
+  const results = await Promise.allSettled(
+    updates.map(({ id, priority }) =>
+      supabase.from('tunes').update({ priority }).eq('id', id),
+    ),
+  )
+  const errors = results
+    .map((r, i) => (r.status === 'rejected' ? `${updates[i].id}: ${r.reason}` : null))
+    .filter((s): s is string => s !== null)
+  if (errors.length) {
+    throw new Error(`Priority update failed for ${errors.length} tune(s): ${errors[0]}`)
+  }
+}

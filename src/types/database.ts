@@ -328,6 +328,7 @@ export type Database = {
           key: string | null
           name: string
           notes: string | null
+          priority: number | null
           status: Database["public"]["Enums"]["tune_status"]
           tuning: string
           updated_at: string
@@ -342,6 +343,7 @@ export type Database = {
           key?: string | null
           name: string
           notes?: string | null
+          priority?: number | null
           status?: Database["public"]["Enums"]["tune_status"]
           tuning?: string
           updated_at?: string
@@ -356,6 +358,7 @@ export type Database = {
           key?: string | null
           name?: string
           notes?: string | null
+          priority?: number | null
           status?: Database["public"]["Enums"]["tune_status"]
           tuning?: string
           updated_at?: string

@@ -35,10 +35,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/PracticeView.vue'),
   },
   {
-    path: '/sources',
-    name: 'sources',
-    component: () => import('@/views/SourcesView.vue'),
+    path: '/learn',
+    name: 'learn',
+    component: () => import('@/views/LearnView.vue'),
   },
+  // /sources is no longer a top-level destination, but the source detail
+  // route is still reached via "Heard at" links on the tune detail page.
   {
     path: '/sources/:id',
     name: 'source-detail',

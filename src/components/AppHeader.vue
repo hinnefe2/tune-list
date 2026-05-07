@@ -26,8 +26,8 @@ async function signOut() {
 const navLinks = [
   { name: 'tunes', label: 'Tunes' },
   { name: 'capture', label: 'Capture' },
+  { name: 'learn', label: 'Learn' },
   { name: 'practice', label: 'Practice' },
-  { name: 'sources', label: 'Sources' },
 ] as const
 </script>
 
