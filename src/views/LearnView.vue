@@ -212,7 +212,7 @@ async function setStatus(tune: Tune, next: TuneStatus) {
         :key="tune.id"
         class="border border-surface-200 dark:border-surface-800 rounded-lg overflow-hidden"
       >
-        <div class="flex items-center gap-2 px-3 py-2">
+        <div class="flex items-center gap-2 px-3 py-2 flex-wrap">
           <span class="text-xs text-surface-400 tabular-nums w-6 text-right shrink-0">
             {{ idx + 1 }}
           </span>
@@ -229,19 +229,16 @@ async function setStatus(tune: Tune, next: TuneStatus) {
               ]"
             />
             <span class="truncate font-medium">{{ tune.name }}</span>
-            <span
-              :class="[
-                'shrink-0 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium',
-                STATUS_BADGE[tune.status],
-              ]"
-            >
-              {{ STATUS_LABEL[tune.status] }}
-            </span>
             <span v-if="tune.key" class="shrink-0 text-xs text-surface-500">
               {{ tune.key }}
             </span>
           </button>
-          <div class="flex items-center gap-0.5 shrink-0">
+          <div
+            :class="[
+              'flex items-center gap-0.5 shrink-0',
+              expanded.has(tune.id) ? 'max-sm:basis-full max-sm:justify-end' : '',
+            ]"
+          >
             <Button
               icon="pi pi-angle-double-up"
               text
