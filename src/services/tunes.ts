@@ -70,15 +70,23 @@ export async function deleteTune(id: string): Promise<void> {
  */
 export async function setTunePriorities(updates: { id: string; priority: number }[]): Promise<void> {
   if (updates.length === 0) return
-  const results = await Promise.allSettled(
+  // The supabase-js client resolves on HTTP errors and surfaces them via
+  // `result.error`, so we collect each call's resolved error rather than
+  // relying on Promise rejection.
+  const results = await Promise.all(
     updates.map(({ id, priority }) =>
-      supabase.from('tunes').update({ priority }).eq('id', id),
+      supabase
+        .from('tunes')
+        .update({ priority })
+        .eq('id', id)
+        .then((r) => ({ id, error: r.error })),
     ),
   )
-  const errors = results
-    .map((r, i) => (r.status === 'rejected' ? `${updates[i].id}: ${r.reason}` : null))
-    .filter((s): s is string => s !== null)
-  if (errors.length) {
-    throw new Error(`Priority update failed for ${errors.length} tune(s): ${errors[0]}`)
+  const failures = results.filter((r) => r.error !== null)
+  if (failures.length) {
+    const first = failures[0].error
+    throw new Error(
+      `Priority update failed for ${failures.length}/${updates.length} tune(s): ${first?.message ?? String(first)}`,
+    )
   }
 }
