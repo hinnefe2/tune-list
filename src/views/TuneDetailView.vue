@@ -10,7 +10,6 @@ import { useAuthStore } from '@/stores/auth'
 import { getTune, type Tune, type TuneInsert, type TuneUpdate } from '@/services/tunes'
 import { STATUS_BADGE, STATUS_LABEL } from '@/lib/tune-options'
 import TuneEditor from '@/components/TuneEditor.vue'
-import SourcePicker from '@/components/SourcePicker.vue'
 import MediaEmbed from '@/components/MediaEmbed.vue'
 import MediaEditor from '@/components/MediaEditor.vue'
 import {
@@ -405,57 +404,64 @@ function deleteMedia(m: MediaLink) {
         </div>
       </header>
 
-      <dl class="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
-        <dt class="text-surface-500">Key</dt>
-        <dd>{{ liveTune.key ?? '—' }}</dd>
-        <template v-if="liveTune.alt_keys.length">
-          <dt class="text-surface-500">Alt keys</dt>
-          <dd>{{ liveTune.alt_keys.join(', ') }}</dd>
-        </template>
-        <dt class="text-surface-500">Tuning</dt>
-        <dd>{{ liveTune.tuning }}</dd>
-        <template v-if="liveTune.genre">
-          <dt class="text-surface-500">Genre</dt>
-          <dd>{{ liveTune.genre }}</dd>
-        </template>
-      </dl>
+      <div class="flex items-start justify-between gap-3">
+        <dl class="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
+          <template v-if="liveTune.key">
+            <dt class="text-surface-500">Key</dt>
+            <dd>{{ liveTune.key }}</dd>
+          </template>
+          <template v-if="liveTune.alt_keys.length">
+            <dt class="text-surface-500">Alt keys</dt>
+            <dd>{{ liveTune.alt_keys.join(', ') }}</dd>
+          </template>
+          <template v-if="liveTune.tuning">
+            <dt class="text-surface-500">Tuning</dt>
+            <dd>{{ liveTune.tuning }}</dd>
+          </template>
+          <template v-if="liveTune.genre">
+            <dt class="text-surface-500">Genre</dt>
+            <dd>{{ liveTune.genre }}</dd>
+          </template>
+          <template v-if="tuneSources.length">
+            <dt class="text-surface-500">Heard at</dt>
+            <dd class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <RouterLink
+                v-for="link in tuneSources"
+                :key="link.id"
+                :to="{ name: 'source-detail', params: { id: link.source.id } }"
+                class="inline-flex items-center gap-1.5 hover:underline"
+              >
+                <i :class="[SOURCE_KIND_ICON[link.source.kind], 'text-surface-400']" />
+                <span>{{ link.source.name }}</span>
+              </RouterLink>
+            </dd>
+          </template>
+        </dl>
+        <div class="flex items-center gap-1 shrink-0">
+          <Button
+            size="small"
+            severity="secondary"
+            outlined
+            aria-label="Edit tune"
+            @click="editorOpen = true"
+          >
+            <i class="pi pi-pencil mr-2" /> Edit
+          </Button>
+          <Button
+            size="small"
+            severity="danger"
+            text
+            aria-label="Delete tune"
+            @click="handleDelete"
+          >
+            <i class="pi pi-trash mr-2" /> Delete
+          </Button>
+        </div>
+      </div>
 
       <section v-if="liveTune.notes" class="space-y-1">
         <h2 class="text-sm font-medium text-surface-500">Notes</h2>
         <p class="whitespace-pre-wrap">{{ liveTune.notes }}</p>
-      </section>
-
-      <section class="space-y-3 border-t border-surface-200 dark:border-surface-800 pt-5">
-        <h2 class="text-sm font-medium text-surface-500">Heard at</h2>
-        <ul v-if="tuneSources.length" class="space-y-1">
-          <li
-            v-for="link in tuneSources"
-            :key="link.id"
-            class="flex items-center gap-2 text-sm"
-          >
-            <i :class="[SOURCE_KIND_ICON[link.source.kind], 'text-surface-400']" />
-            <RouterLink
-              :to="{ name: 'source-detail', params: { id: link.source.id } }"
-              class="hover:underline"
-            >
-              {{ link.source.name }}
-            </RouterLink>
-            <Button
-              icon="pi pi-times"
-              severity="secondary"
-              text
-              rounded
-              size="small"
-              aria-label="Unlink source"
-              @click="unlinkSource(link)"
-            />
-          </li>
-        </ul>
-        <SourcePicker
-          placeholder="Link a source…"
-          :exclude-ids="linkedSourceIds"
-          @select="handleSourceSelected"
-        />
       </section>
 
       <section class="space-y-3 border-t border-surface-200 dark:border-surface-800 pt-5">
@@ -542,15 +548,6 @@ function deleteMedia(m: MediaLink) {
         </ul>
       </section>
 
-      <div class="flex justify-end gap-2 pt-4 border-t border-surface-200 dark:border-surface-800">
-        <Button severity="danger" text @click="handleDelete">
-          <i class="pi pi-trash mr-2" /> Delete
-        </Button>
-        <Button @click="editorOpen = true">
-          <i class="pi pi-pencil mr-2" /> Edit
-        </Button>
-      </div>
-
       <Dialog
         v-model:visible="editorOpen"
         header="Edit tune"
@@ -558,7 +555,14 @@ function deleteMedia(m: MediaLink) {
         :style="{ width: 'min(560px, 95vw)' }"
         :dismissable-mask="true"
       >
-        <TuneEditor :tune="liveTune" @save="handleSave" @cancel="editorOpen = false" />
+        <TuneEditor
+          :tune="liveTune"
+          :tune-sources="tuneSources"
+          @save="handleSave"
+          @cancel="editorOpen = false"
+          @link-source="handleSourceSelected"
+          @unlink-source="unlinkSource"
+        />
       </Dialog>
 
       <Dialog

@@ -7,12 +7,16 @@ import InputChips from 'primevue/inputchips'
 import Button from 'primevue/button'
 import type { Tune, TuneInsert, TuneUpdate } from '@/services/tunes'
 import type { MediaKind } from '@/services/media'
+import type { Source } from '@/services/sources'
+import type { TuneSourceWithSource } from '@/services/tune-sources'
 import {
   COMMON_KEYS,
   COMMON_TUNINGS,
   STATUS_OPTIONS,
 } from '@/lib/tune-options'
 import { MEDIA_KIND_OPTIONS, inferKindFromUrl } from '@/lib/media-helpers'
+import { SOURCE_KIND_ICON } from '@/lib/source-options'
+import SourcePicker from '@/components/SourcePicker.vue'
 
 interface Form {
   name: string
@@ -30,10 +34,15 @@ export interface NewMediaRow {
   url: string
 }
 
-const props = defineProps<{ tune: Tune | null }>()
+const props = defineProps<{
+  tune: Tune | null
+  tuneSources?: TuneSourceWithSource[]
+}>()
 const emit = defineEmits<{
   save: [payload: TuneInsert | TuneUpdate, isUpdate: boolean, mediaRows: NewMediaRow[]]
   cancel: []
+  'link-source': [source: Source]
+  'unlink-source': [link: TuneSourceWithSource]
 }>()
 
 const blank = (): Form => ({
@@ -53,6 +62,9 @@ const submitting = ref(false)
 const errorMsg = ref<string | null>(null)
 
 const isAdd = computed(() => props.tune === null)
+const linkedSourceIds = computed(() =>
+  (props.tuneSources ?? []).map((ts) => ts.source_id),
+)
 
 watch(
   () => props.tune,
@@ -211,6 +223,35 @@ async function handleSubmit() {
     <div class="space-y-1">
       <label class="block text-sm font-medium">Notes</label>
       <Textarea v-model="form.notes" class="w-full" rows="3" auto-resize />
+    </div>
+
+    <div v-if="!isAdd" class="space-y-2">
+      <label class="block text-sm font-medium">Heard at</label>
+      <ul v-if="props.tuneSources && props.tuneSources.length" class="space-y-1">
+        <li
+          v-for="link in props.tuneSources"
+          :key="link.id"
+          class="flex items-center gap-2 text-sm"
+        >
+          <i :class="[SOURCE_KIND_ICON[link.source.kind], 'text-surface-400']" />
+          <span class="flex-1 min-w-0 truncate">{{ link.source.name }}</span>
+          <Button
+            type="button"
+            icon="pi pi-times"
+            severity="secondary"
+            text
+            rounded
+            size="small"
+            aria-label="Unlink source"
+            @click="emit('unlink-source', link)"
+          />
+        </li>
+      </ul>
+      <SourcePicker
+        placeholder="Link a source…"
+        :exclude-ids="linkedSourceIds"
+        @select="(s: Source) => emit('link-source', s)"
+      />
     </div>
 
     <div v-if="isAdd" class="space-y-2 border-t border-surface-200 dark:border-surface-800 pt-4">
