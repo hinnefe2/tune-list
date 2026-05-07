@@ -67,3 +67,10 @@ export async function deleteRecording(path: string): Promise<void> {
   const { error } = await supabase.storage.from(RECORDINGS_BUCKET).remove([path])
   if (error) throw error
 }
+
+export async function downloadRecordingBlob(path: string): Promise<Blob> {
+  const { data, error } = await supabase.storage.from(RECORDINGS_BUCKET).download(path)
+  if (error) throw error
+  if (!data) throw new Error(`Empty download for ${path}`)
+  return data
+}

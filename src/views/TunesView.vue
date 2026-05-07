@@ -25,6 +25,9 @@ import {
   type SortField,
 } from '@/lib/tune-options'
 import { tunesToCsv, downloadCsv, isoToday } from '@/lib/csv-export'
+import { listAllRecordings } from '@/services/recordings'
+import { downloadRecordingBlob } from '@/services/storage'
+import JSZip from 'jszip'
 import { useDelayed } from '@/composables/useDelayed'
 
 const tunesStore = useTunesStore()
@@ -118,19 +121,100 @@ function openAdd() {
   editorOpen.value = true
 }
 
+function safeFilename(s: string, max = 60): string {
+  return s
+    .replace(/[\/\\:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max) || 'untitled'
+}
+
 async function handleExport() {
   if (exporting.value) return
   exporting.value = true
   try {
-    const media = await listAllMedia()
+    const [media, recordings] = await Promise.all([
+      listAllMedia(),
+      listAllRecordings(),
+    ])
     const csv = tunesToCsv(tunesStore.tunes, media)
-    downloadCsv(`tunes-${isoToday()}.csv`, csv)
+    const today = isoToday()
+
+    if (recordings.length === 0) {
+      downloadCsv(`tunes-${today}.csv`, csv)
+      toast.add({
+        severity: 'success',
+        summary: `Exported ${tunesStore.tunes.length} tunes`,
+        detail: media.length ? `${media.length} media link${media.length === 1 ? '' : 's'} included` : undefined,
+        life: 2500,
+      })
+      return
+    }
+
+    // Bundle recordings into a ZIP alongside the CSV. Pull the audio blobs in
+    // parallel; failed downloads degrade gracefully (the row is omitted with
+    // a warning, the rest of the export still ships).
+    const tuneById = new Map(tunesStore.tunes.map((t) => [t.id, t]))
+    const blobs = await Promise.all(
+      recordings.map(async (r) => {
+        try {
+          const blob = await downloadRecordingBlob(r.storage_path)
+          return { recording: r, blob, error: null as Error | null }
+        } catch (err) {
+          return { recording: r, blob: null as Blob | null, error: err instanceof Error ? err : new Error(String(err)) }
+        }
+      }),
+    )
+    const failed = blobs.filter((b) => b.error)
+    const ok = blobs.filter((b) => b.blob)
+
+    const zip = new JSZip()
+    zip.file(`tunes-${today}.csv`, csv)
+    const folder = zip.folder('recordings')!
+    const usedNames = new Set<string>()
+    for (const { recording: r, blob } of ok) {
+      if (!blob) continue
+      const tune = r.tune_id ? tuneById.get(r.tune_id) : null
+      const tuneLabel = tune ? safeFilename(tune.name) : 'unidentified'
+      const ext = (r.storage_path.split('.').pop() ?? 'webm').replace(/[^a-z0-9]/gi, '') || 'webm'
+      const shortId = r.id.slice(0, 8)
+      let name = `${tuneLabel}-${shortId}.${ext}`
+      // Defensive: same blob name twice would silently overwrite in the zip.
+      let n = 2
+      while (usedNames.has(name)) {
+        name = `${tuneLabel}-${shortId}-${n}.${ext}`
+        n++
+      }
+      usedNames.add(name)
+      folder.file(name, blob)
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(zipBlob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `tunes-${today}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+
     toast.add({
       severity: 'success',
       summary: `Exported ${tunesStore.tunes.length} tunes`,
-      detail: media.length ? `${media.length} media link${media.length === 1 ? '' : 's'} included` : undefined,
-      life: 2500,
+      detail: `${ok.length} recording${ok.length === 1 ? '' : 's'} bundled${
+        media.length ? `, ${media.length} media link${media.length === 1 ? '' : 's'}` : ''
+      }`,
+      life: 3000,
     })
+    if (failed.length) {
+      toast.add({
+        severity: 'warn',
+        summary: `${failed.length} recording${failed.length === 1 ? '' : 's'} skipped`,
+        detail: failed[0].error?.message ?? 'Unknown error',
+        life: 6000,
+      })
+    }
   } catch (e) {
     toast.add({
       severity: 'error',

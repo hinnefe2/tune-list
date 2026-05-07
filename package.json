@@ -12,6 +12,7 @@
   "dependencies": {
     "@primeuix/themes": "^1.2.5",
     "@supabase/supabase-js": "^2.46.1",
+    "jszip": "^3.10.1",
     "papaparse": "^5.5.3",
     "pinia": "^2.3.0",
     "primeicons": "^7.0.0",

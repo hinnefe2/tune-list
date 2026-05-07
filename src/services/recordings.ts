@@ -14,6 +14,15 @@ export async function listRecordingsForTune(tuneId: string): Promise<Recording[]
   return data ?? []
 }
 
+export async function listAllRecordings(): Promise<Recording[]> {
+  const { data, error } = await supabase
+    .from('recordings')
+    .select('*')
+    .order('recorded_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
 export async function createRecording(input: RecordingInsert): Promise<Recording> {
   const { data, error } = await supabase
     .from('recordings')
