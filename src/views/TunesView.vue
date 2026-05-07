@@ -16,8 +16,11 @@ import TuneList from '@/components/TuneList.vue'
 import TuneEditor, { type NewMediaRow } from '@/components/TuneEditor.vue'
 import TuneImportDialog from '@/components/TuneImportDialog.vue'
 import { useAuthStore } from '@/stores/auth'
-import { createMediaLink, listAllMedia } from '@/services/media'
+import { listAllMedia } from '@/services/media'
+import type { Source } from '@/services/sources'
 import type { TuneInsert, TuneUpdate, Tune } from '@/services/tunes'
+import { createTuneWithAttachments } from '@/services/tune-creation'
+import { reportSaveResult } from '@/lib/save-reporter'
 import {
   STATUS_OPTIONS,
   SORT_FIELDS,
@@ -231,6 +234,7 @@ async function handleSave(
   payload: TuneInsert | TuneUpdate,
   isUpdate: boolean,
   mediaRows: NewMediaRow[],
+  sources: Source[],
 ) {
   try {
     if (isUpdate && editingTune.value) {
@@ -239,38 +243,15 @@ async function handleSave(
       editorOpen.value = false
       return
     }
-    const created = await tunesStore.create(payload as Omit<TuneInsert, 'user_id'>)
-    if (mediaRows.length && auth.user) {
-      const userId = auth.user.id
-      const results = await Promise.allSettled(
-        mediaRows.map((r) =>
-          createMediaLink({
-            user_id: userId,
-            tune_id: created.id,
-            kind: r.kind,
-            url: r.url,
-          }),
-        ),
-      )
-      const failed = results.filter((r) => r.status === 'rejected').length
-      const succeeded = results.length - failed
-      if (failed > 0) {
-        toast.add({
-          severity: 'warn',
-          summary: `Tune saved; ${failed} of ${results.length} media link${results.length === 1 ? '' : 's'} failed`,
-          detail: 'Add the rest from the tune detail page.',
-          life: 6000,
-        })
-      } else {
-        toast.add({
-          severity: 'success',
-          summary: `Tune added with ${succeeded} media link${succeeded === 1 ? '' : 's'}`,
-          life: 2500,
-        })
-      }
-    } else {
-      toast.add({ severity: 'success', summary: 'Tune added', life: 2000 })
-    }
+    if (!auth.user) return
+    const result = await createTuneWithAttachments({
+      userId: auth.user.id,
+      tune: payload as Omit<TuneInsert, 'user_id'>,
+      sources,
+      media: mediaRows,
+    })
+    tunesStore.upsert(result.tune)
+    reportSaveResult(toast, result)
     editorOpen.value = false
   } catch (e) {
     toast.add({
