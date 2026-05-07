@@ -21,12 +21,12 @@ async function handleSignIn() {
 </script>
 
 <template>
-  <div class="min-h-full flex items-center justify-center px-6">
+  <div class="min-h-screen flex items-center justify-center px-6 py-16">
     <div class="w-full max-w-sm text-center space-y-8">
       <div class="space-y-2">
         <h1 class="text-3xl font-semibold tracking-tight">Tune List</h1>
         <p class="text-surface-600 dark:text-surface-400 text-sm">
-          One canonical home for the fiddle tunes you're tracking.
+          A place to track the fiddle tunes you know and hope to learn one day
         </p>
       </div>
 
