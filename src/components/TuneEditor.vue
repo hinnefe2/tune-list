@@ -17,6 +17,9 @@ import {
 import { MEDIA_KIND_OPTIONS, inferKindFromUrl } from '@/lib/media-helpers'
 import { SOURCE_KIND_ICON } from '@/lib/source-options'
 import SourcePicker from '@/components/SourcePicker.vue'
+import { findCandidates } from '@/lib/tune-matching'
+import { useTunesStore } from '@/stores/tunes'
+import { RouterLink } from 'vue-router'
 
 interface Form {
   name: string
@@ -61,9 +64,16 @@ const mediaRows = ref<NewMediaRow[]>([])
 const submitting = ref(false)
 const errorMsg = ref<string | null>(null)
 
+const tunesStore = useTunesStore()
+
 const isAdd = computed(() => props.tune === null)
 const linkedSourceIds = computed(() =>
   (props.tuneSources ?? []).map((ts) => ts.source_id),
+)
+const duplicateMatches = computed(() =>
+  findCandidates(form.value.name, tunesStore.tunes, {
+    excludeId: props.tune?.id,
+  }),
 )
 
 watch(
@@ -166,6 +176,24 @@ async function handleSubmit() {
         autocapitalize="words"
         autocomplete="off"
       />
+      <p
+        v-if="duplicateMatches.length"
+        class="text-xs text-amber-700 dark:text-amber-400"
+      >
+        Already in your library:
+        <template v-for="(m, i) in duplicateMatches" :key="m.tune.id">
+          <RouterLink
+            :to="{ name: 'tune-detail', params: { id: m.tune.id } }"
+            class="font-medium underline hover:no-underline"
+          >
+            {{ m.tune.name }}<span
+              v-if="m.matchedField === 'aka'"
+              class="font-normal"
+            > (aka “{{ m.matchedValue }}”)</span>
+          </RouterLink><span v-if="i < duplicateMatches.length - 1">, </span>
+        </template>
+        — same tune?
+      </p>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

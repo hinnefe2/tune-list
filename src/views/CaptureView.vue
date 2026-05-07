@@ -18,6 +18,8 @@ import AudioRecorder from '@/components/AudioRecorder.vue'
 import type { RecorderResult } from '@/composables/useAudioRecorder'
 import { uploadRecording } from '@/services/storage'
 import { createRecording } from '@/services/recordings'
+import { findCandidates } from '@/lib/tune-matching'
+import { RouterLink } from 'vue-router'
 
 const tunesStore = useTunesStore()
 const sourcesStore = useSourcesStore()
@@ -36,6 +38,8 @@ const nameInput = ref<InstanceType<typeof InputText> | null>(null)
 const stagedRecording = ref<RecorderResult | null>(null)
 
 const keyOptions = COMMON_KEYS.map((k) => ({ value: k, label: k }))
+
+const duplicateMatches = computed(() => findCandidates(name.value, tunesStore.tunes))
 
 onMounted(async () => {
   // Both stores power the source picker and post-save list updates.
@@ -180,6 +184,24 @@ function done() {
           spellcheck="false"
           required
         />
+        <p
+          v-if="duplicateMatches.length"
+          class="text-xs text-amber-700 dark:text-amber-400"
+        >
+          Already in your library:
+          <template v-for="(m, i) in duplicateMatches" :key="m.tune.id">
+            <RouterLink
+              :to="{ name: 'tune-detail', params: { id: m.tune.id } }"
+              class="font-medium underline hover:no-underline"
+            >
+              {{ m.tune.name }}<span
+                v-if="m.matchedField === 'aka'"
+                class="font-normal"
+              > (aka “{{ m.matchedValue }}”)</span>
+            </RouterLink><span v-if="i < duplicateMatches.length - 1">, </span>
+          </template>
+          — same tune?
+        </p>
       </div>
 
       <div class="space-y-1">
