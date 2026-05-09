@@ -1,15 +1,25 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppHeader from '@/components/AppHeader.vue'
+import ShortcutsHelp from '@/components/ShortcutsHelp.vue'
 import Toast from 'primevue/toast'
 import ConfirmDialog from 'primevue/confirmdialog'
+import { useNavShortcuts, useShortcut } from '@/composables/useShortcuts'
 
 const auth = useAuthStore()
 const route = useRoute()
 
 const showHeader = computed(() => auth.isSignedIn && route.name !== 'login')
+
+useNavShortcuts()
+
+const helpOpen = ref(false)
+useShortcut('?', (e) => {
+  e.preventDefault()
+  helpOpen.value = !helpOpen.value
+})
 </script>
 
 <template>
@@ -20,5 +30,6 @@ const showHeader = computed(() => auth.isSignedIn && route.name !== 'login')
     </main>
     <Toast position="bottom-center" />
     <ConfirmDialog />
+    <ShortcutsHelp v-model:visible="helpOpen" />
   </div>
 </template>

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { Tune } from '@/services/tunes'
 import { STATUS_BADGE, STATUS_LABEL } from '@/lib/tune-options'
 
-const props = defineProps<{ tune: Tune }>()
+const props = defineProps<{ tune: Tune; selected?: boolean }>()
 
 const subtitle = computed(() => {
   const bits: string[] = []
@@ -15,12 +15,26 @@ const subtitle = computed(() => {
 })
 
 const akaText = computed(() => (props.tune.aka.length ? `aka ${props.tune.aka.join(', ')}` : ''))
+
+const root = ref<{ $el?: HTMLElement } | null>(null)
+watch(
+  () => props.selected,
+  (sel) => {
+    if (sel) root.value?.$el?.scrollIntoView({ block: 'nearest' })
+  },
+)
 </script>
 
 <template>
   <RouterLink
+    ref="root"
     :to="{ name: 'tune-detail', params: { id: tune.id } }"
-    class="block px-4 py-3 hover:bg-surface-50 dark:hover:bg-surface-900 border-b border-surface-200 dark:border-surface-800"
+    :class="[
+      'block px-4 py-3 border-b border-surface-200 dark:border-surface-800',
+      selected
+        ? 'bg-surface-50 dark:bg-surface-900'
+        : 'hover:bg-surface-50 dark:hover:bg-surface-900',
+    ]"
   >
     <div class="flex items-start justify-between gap-3">
       <div class="min-w-0">

@@ -65,10 +65,28 @@ const externalUrl = computed(() => {
   if (props.media.url && !youtube.value && !spotify.value) return props.media.url
   return null
 })
+
+const root = ref<HTMLElement | null>(null)
+const autoplay = ref(false)
+
+function canPlay(): boolean {
+  return Boolean(youtube.value || spotify.value)
+}
+
+function play() {
+  if (!canPlay()) return
+  // Flipping `autoplay` re-renders the iframe with `autoplay=1` in its src;
+  // the keypress that triggered this still counts as a user gesture, so
+  // browsers permit YouTube to start playback automatically.
+  autoplay.value = true
+  root.value?.scrollIntoView({ block: 'nearest' })
+}
+
+defineExpose({ play, canPlay })
 </script>
 
 <template>
-  <div class="space-y-2">
+  <div ref="root" class="space-y-2">
     <div v-if="media.title || media.section" class="flex items-center gap-2 text-sm">
       <span v-if="media.section" class="px-1.5 py-0.5 rounded bg-surface-100 dark:bg-surface-800 text-xs font-medium">
         {{ media.section }}
@@ -78,7 +96,7 @@ const externalUrl = computed(() => {
 
     <div v-if="youtube" class="aspect-video w-full rounded overflow-hidden bg-black">
       <iframe
-        :src="youTubeEmbedSrc(youtube)"
+        :src="youTubeEmbedSrc(youtube, { autoplay })"
         class="w-full h-full"
         frameborder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -89,7 +107,7 @@ const externalUrl = computed(() => {
 
     <div v-else-if="spotify" class="w-full rounded-xl overflow-hidden">
       <iframe
-        :src="spotifyEmbedSrc(spotify)"
+        :src="spotifyEmbedSrc(spotify, { autoplay })"
         class="w-full block"
         :style="{ height: spotify.type === 'track' ? '152px' : '352px' }"
         frameborder="0"

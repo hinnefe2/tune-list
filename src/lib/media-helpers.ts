@@ -64,9 +64,10 @@ export function parseYouTube(url: string): YouTubeRef | null {
   return { id, start }
 }
 
-export function youTubeEmbedSrc(ref: YouTubeRef): string {
+export function youTubeEmbedSrc(ref: YouTubeRef, opts?: { autoplay?: boolean }): string {
   const params = new URLSearchParams()
   if (ref.start) params.set('start', String(Math.floor(ref.start)))
+  if (opts?.autoplay) params.set('autoplay', '1')
   const qs = params.toString()
   return `https://www.youtube.com/embed/${ref.id}${qs ? `?${qs}` : ''}`
 }
@@ -91,8 +92,15 @@ export function parseSpotify(url: string): { type: string; id: string } | null {
   return { type, id: id.split('?')[0] }
 }
 
-export function spotifyEmbedSrc(parsed: { type: string; id: string }): string {
-  return `https://open.spotify.com/embed/${parsed.type}/${parsed.id}`
+export function spotifyEmbedSrc(
+  parsed: { type: string; id: string },
+  opts?: { autoplay?: boolean },
+): string {
+  // Spotify's basic embed honors ?autoplay=1 only sporadically (Premium + signed
+  // in is the most reliable case), but it's harmless when ignored — and the
+  // parent still scrolls the embed into view as a fallback.
+  const qs = opts?.autoplay ? '?autoplay=1' : ''
+  return `https://open.spotify.com/embed/${parsed.type}/${parsed.id}${qs}`
 }
 
 /** Decide a default kind for a freshly-pasted URL when the user hasn't picked one. */

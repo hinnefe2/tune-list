@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
@@ -32,11 +33,13 @@ import { listAllRecordings } from '@/services/recordings'
 import { downloadRecordingBlob } from '@/services/storage'
 import JSZip from 'jszip'
 import { useDelayed } from '@/composables/useDelayed'
+import { useShortcut } from '@/composables/useShortcuts'
 
 const tunesStore = useTunesStore()
 const ui = useUiStore()
 const toast = useToast()
 const auth = useAuthStore()
+const router = useRouter()
 
 const showSkeleton = useDelayed(
   computed(() => tunesStore.loading && !tunesStore.initialized),
@@ -49,6 +52,63 @@ const addSortMenu = ref<InstanceType<typeof Menu> | null>(null)
 const filtersOpen = ref(false)
 const sortOpen = ref(false)
 const exporting = ref(false)
+const searchMobile = ref<InstanceType<typeof InputText> | null>(null)
+const searchDesktop = ref<InstanceType<typeof InputText> | null>(null)
+
+function focusSearch() {
+  for (const c of [searchDesktop.value, searchMobile.value]) {
+    const el = (c as { $el?: HTMLInputElement } | null)?.$el
+    if (el && el.offsetParent !== null) {
+      el.focus()
+      el.select()
+      return
+    }
+  }
+}
+
+useShortcut('/', (e) => {
+  if (editorOpen.value || importOpen.value) return
+  e.preventDefault()
+  focusSearch()
+})
+
+useShortcut('a', () => {
+  if (editorOpen.value || importOpen.value) return
+  openAdd()
+})
+
+// Keyboard row selection: tracked by id (not index) so sort/filter changes
+// don't shift the highlight onto a different tune.
+const selectedId = ref<string | null>(null)
+const selectedIndex = computed(() =>
+  selectedId.value ? filtered.value.findIndex((t) => t.id === selectedId.value) : -1,
+)
+
+function moveSelection(delta: number) {
+  const list = filtered.value
+  if (!list.length) return
+  const cur = selectedIndex.value
+  const next = cur < 0 ? 0 : Math.max(0, Math.min(list.length - 1, cur + delta))
+  selectedId.value = list[next].id
+}
+
+useShortcut('j', () => {
+  if (editorOpen.value || importOpen.value) return
+  moveSelection(1)
+})
+useShortcut('k', () => {
+  if (editorOpen.value || importOpen.value) return
+  moveSelection(-1)
+})
+useShortcut('Enter', (e) => {
+  if (editorOpen.value || importOpen.value) return
+  // Only act when nothing else is focused — otherwise Enter belongs to the
+  // focused button/link/menu item.
+  if (document.activeElement && document.activeElement !== document.body) return
+  if (!selectedId.value) return
+  e.preventDefault()
+  router.push({ name: 'tune-detail', params: { id: selectedId.value } })
+})
 
 onMounted(async () => {
   try {
@@ -330,11 +390,13 @@ function openAddSortMenu(event: Event) {
     <IconField class="sm:hidden">
       <InputIcon class="pi pi-search" />
       <InputText
+        ref="searchMobile"
         v-model="ui.tuneFilters.search"
         placeholder="Search name, aka, notes…"
         class="w-full"
         enterkeyhint="search"
         @keydown.enter.prevent="(e: KeyboardEvent) => (e.target as HTMLElement).blur()"
+        @keydown.esc.prevent="(e: KeyboardEvent) => (e.target as HTMLElement).blur()"
       />
     </IconField>
 
@@ -385,11 +447,13 @@ function openAddSortMenu(event: Event) {
       <IconField class="lg:col-span-2 max-sm:hidden">
         <InputIcon class="pi pi-search" />
         <InputText
+          ref="searchDesktop"
           v-model="ui.tuneFilters.search"
           placeholder="Search name, aka, notes…"
           class="w-full"
           enterkeyhint="search"
           @keydown.enter.prevent="(e: KeyboardEvent) => (e.target as HTMLElement).blur()"
+          @keydown.esc.prevent="(e: KeyboardEvent) => (e.target as HTMLElement).blur()"
         />
       </IconField>
 
@@ -532,7 +596,7 @@ function openAddSortMenu(event: Event) {
         </div>
       </div>
     </div>
-    <TuneList v-else :tunes="filtered">
+    <TuneList v-else :tunes="filtered" :selected-id="selectedId">
       <template #empty>
         <div v-if="!tunesStore.tunes.length" class="py-20 text-center space-y-3">
           <p class="text-surface-500">No tunes yet.</p>

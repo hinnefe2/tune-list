@@ -45,6 +45,7 @@ import type { Source } from '@/services/sources'
 import ToggleSwitch from 'primevue/toggleswitch'
 import Skeleton from 'primevue/skeleton'
 import { useDelayed } from '@/composables/useDelayed'
+import { useShortcut } from '@/composables/useShortcuts'
 
 const props = defineProps<{ id: string }>()
 
@@ -67,6 +68,26 @@ const recorderOpen = ref(false)
 const stagedRecording = ref<RecorderResult | null>(null)
 const savingRecording = ref(false)
 const showSkeleton = useDelayed(loading)
+
+type MediaEmbedHandle = { play: () => void; canPlay: () => boolean }
+const mediaEmbedRefs = ref<Array<MediaEmbedHandle | null>>([])
+function setMediaEmbedRef(idx: number, instance: unknown) {
+  mediaEmbedRefs.value[idx] = (instance as MediaEmbedHandle | null) ?? null
+}
+
+const anyDialogOpen = computed(
+  () => editorOpen.value || mediaEditorOpen.value || recorderOpen.value,
+)
+
+useShortcut('p', () => {
+  if (anyDialogOpen.value) return
+  for (const r of mediaEmbedRefs.value) {
+    if (r?.canPlay()) {
+      r.play()
+      return
+    }
+  }
+})
 
 async function load() {
   loading.value = true
@@ -528,7 +549,7 @@ function deleteMedia(m: MediaLink) {
         </div>
         <ul v-else class="space-y-6">
           <li
-            v-for="m in mediaLinks"
+            v-for="(m, idx) in mediaLinks"
             :key="m.id"
             class="border border-surface-200 dark:border-surface-800 rounded p-3 space-y-2"
           >
@@ -539,7 +560,7 @@ function deleteMedia(m: MediaLink) {
                 <Button icon="pi pi-trash" text rounded size="small" severity="danger" aria-label="Delete" @click="deleteMedia(m)" />
               </div>
             </div>
-            <MediaEmbed :media="m" />
+            <MediaEmbed :ref="(el) => setMediaEmbedRef(idx, el)" :media="m" />
           </li>
         </ul>
       </section>
