@@ -4,7 +4,8 @@ import Dialog from 'primevue/dialog'
 defineProps<{ visible: boolean }>()
 defineEmits<{ 'update:visible': [boolean] }>()
 
-type Group = { name: string; items: { keys: string[]; desc: string }[] }
+type Item = { keys: string[]; desc: string; sep?: string }
+type Group = { name: string; items: Item[] }
 
 const groups: Group[] = [
   {
@@ -14,6 +15,8 @@ const groups: Group[] = [
       { keys: ['g', 'c'], desc: 'Go to Capture' },
       { keys: ['g', 'l'], desc: 'Go to Learn' },
       { keys: ['g', 'p'], desc: 'Go to Practice' },
+      { keys: ['g', 'g'], desc: 'Scroll to top' },
+      { keys: ['Shift', 'G'], desc: 'Scroll to bottom', sep: '+' },
     ],
   },
   {
@@ -25,6 +28,11 @@ const groups: Group[] = [
       { keys: ['j'], desc: 'Move selection down' },
       { keys: ['k'], desc: 'Move selection up' },
       { keys: ['Enter'], desc: 'Open selected tune' },
+      { keys: ['1'], desc: 'Set status: Wishlist' },
+      { keys: ['2'], desc: 'Set status: Learning' },
+      { keys: ['3'], desc: 'Set status: Can follow' },
+      { keys: ['4'], desc: 'Set status: Can lead' },
+      { keys: ['5'], desc: 'Set status: Forgotten' },
     ],
   },
   {
@@ -61,7 +69,7 @@ const groups: Group[] = [
             <span>{{ item.desc }}</span>
             <span class="flex items-center gap-1">
               <template v-for="(k, idx) in item.keys" :key="idx">
-                <span v-if="idx > 0" class="text-xs text-surface-400">then</span>
+                <span v-if="idx > 0" class="text-xs text-surface-400">{{ item.sep ?? 'then' }}</span>
                 <kbd
                   class="inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-6 rounded border border-surface-300 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-xs font-mono"
                 >{{ k }}</kbd>

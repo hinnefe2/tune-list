@@ -38,8 +38,8 @@ const NAV_KEYS: Record<string, string> = {
 const LEADER_TIMEOUT_MS = 1000
 
 /**
- * "g" leader-key navigation: press g, then within ~1s press t/c/l/p to jump
- * to the corresponding page. Install once at the app root.
+ * Global navigation shortcuts: "g" leader (g→t/c/l/p for pages, g→g for top
+ * of page) and "G" (Shift+g) for bottom of page. Install once at the app root.
  *
  * While the leader is active, the follow-up keypress is consumed (default
  * prevented + propagation stopped) so sequences like "ga" don't fall through
@@ -72,8 +72,17 @@ export function useNavShortcuts() {
       clearLeader()
       e.preventDefault()
       e.stopImmediatePropagation()
+      if (e.key === 'g') {
+        window.scrollTo({ top: 0 })
+        return
+      }
       const route = NAV_KEYS[e.key]
       if (route) router.push({ name: route })
+      return
+    }
+    if (e.key === 'G') {
+      e.preventDefault()
+      window.scrollTo({ top: document.documentElement.scrollHeight })
       return
     }
     if (e.key === 'g') {

@@ -19,7 +19,7 @@ import TuneImportDialog from '@/components/TuneImportDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import { listAllMedia } from '@/services/media'
 import type { Source } from '@/services/sources'
-import type { TuneInsert, TuneUpdate, Tune } from '@/services/tunes'
+import type { TuneInsert, TuneUpdate, Tune, TuneStatus } from '@/services/tunes'
 import { createTuneWithAttachments } from '@/services/tune-creation'
 import { reportSaveResult } from '@/lib/save-reporter'
 import {
@@ -108,6 +108,29 @@ useShortcut('Enter', (e) => {
   if (!selectedId.value) return
   e.preventDefault()
   router.push({ name: 'tune-detail', params: { id: selectedId.value } })
+})
+
+async function setStatus(tuneId: string, status: TuneStatus) {
+  try {
+    await tunesStore.update(tuneId, { status })
+  } catch (e) {
+    toast.add({
+      severity: 'error',
+      summary: 'Failed to update status',
+      detail: e instanceof Error ? e.message : String(e),
+      life: 5000,
+    })
+  }
+}
+
+// Digit-to-status mirrors STATUS_OPTIONS order so the help dialog and the
+// status dropdown stay in sync if statuses are ever reordered.
+STATUS_OPTIONS.forEach((opt, idx) => {
+  useShortcut(String(idx + 1), () => {
+    if (editorOpen.value || importOpen.value) return
+    if (!selectedId.value) return
+    setStatus(selectedId.value, opt.value)
+  })
 })
 
 onMounted(async () => {
