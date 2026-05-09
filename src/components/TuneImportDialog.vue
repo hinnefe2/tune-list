@@ -11,7 +11,7 @@ import { useSourcesStore } from '@/stores/sources'
 import { useAuthStore } from '@/stores/auth'
 import { linkSourceToTune } from '@/services/tune-sources'
 import { createMediaLink } from '@/services/media'
-import { STATUS_LABEL } from '@/lib/tune-options'
+import { STATUS_LABEL, STATUS_OPTIONS } from '@/lib/tune-options'
 
 const visible = defineModel<boolean>('visible', { required: true })
 
@@ -210,7 +210,9 @@ async function handleImport() {
         <span class="font-mono text-xs">looptube_url</span>. Use
         <span class="font-mono text-xs">|</span> inside a cell to separate multiple values
         (e.g. <span class="font-mono text-xs">A|G</span> for alt_keys, or two source names).
-        Sources are matched by name and created as kind <span class="font-mono text-xs">other</span> if new.
+        Accepted <span class="font-mono text-xs">status</span> values:
+        <template v-for="(o, i) in STATUS_OPTIONS" :key="o.value"><span v-if="i > 0">, </span><span class="font-mono text-xs">{{ o.value }}</span></template>
+        (case-insensitive; unknown values default to <span class="font-mono text-xs">wishlist</span>).
       </p>
 
       <div v-if="!parseResult" class="flex items-center gap-3">
