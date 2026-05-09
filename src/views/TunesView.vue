@@ -393,10 +393,10 @@ function openAddSortMenu(event: Event) {
           outlined
           :disabled="!tunesStore.tunes.length || exporting"
           :loading="exporting"
-          aria-label="Export CSV"
+          aria-label="Export data"
           @click="handleExport"
         >
-          <i class="pi pi-download sm:mr-2" /><span class="hidden sm:inline">Export CSV</span>
+          <i class="pi pi-download sm:mr-2" /><span class="hidden sm:inline">Export data</span>
         </Button>
         <Button
           severity="secondary"
