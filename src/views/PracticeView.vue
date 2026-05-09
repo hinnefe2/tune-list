@@ -100,6 +100,18 @@ async function refresh() {
 }
 
 function skipCurrent() {
+  if (submitting.value) return
+  const card = dueCards.value[currentIndex.value]
+  if (!card) return
+  // Move the card to the back of the queue without recording a review — SR
+  // state (lapses, ease, due date) is left untouched. currentIndex stays put
+  // so the next card slides into this slot. With a single-card queue, this
+  // is a no-op; the user just sees the same card again.
+  dueCards.value.splice(currentIndex.value, 1)
+  dueCards.value.push(card)
+}
+
+function dropCurrent() {
   currentIndex.value++
 }
 </script>
@@ -148,12 +160,13 @@ function skipCurrent() {
         :tune="currentTune"
         :media="currentMedia"
         @rate="handleRate"
+        @skip="skipCurrent"
       />
     </div>
 
     <div v-else-if="currentCard && !currentTune" class="py-12 text-center text-surface-500">
       <p>The tune for this card is no longer available.</p>
-      <Button text class="mt-3" @click="skipCurrent">Skip</Button>
+      <Button text class="mt-3" @click="dropCurrent">Skip</Button>
     </div>
   </div>
 </template>

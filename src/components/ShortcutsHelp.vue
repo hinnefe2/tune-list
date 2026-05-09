@@ -40,6 +40,17 @@ const groups: Group[] = [
     items: [{ keys: ['p'], desc: 'Play first media link' }],
   },
   {
+    name: 'Practice',
+    items: [
+      { keys: ['Space'], desc: 'Reveal answer' },
+      { keys: ['1'], desc: 'Rate: Again' },
+      { keys: ['2'], desc: 'Rate: Hard' },
+      { keys: ['3'], desc: 'Rate: Good' },
+      { keys: ['4'], desc: 'Rate: Easy' },
+      { keys: ['s'], desc: 'Skip card (push to back of queue)' },
+    ],
+  },
+  {
     name: 'Global',
     items: [{ keys: ['?'], desc: 'Show this help' }],
   },

@@ -14,7 +14,7 @@ const props = defineProps<{
   media: MediaLink[]
 }>()
 
-const emit = defineEmits<{ rate: [rating: Rating] }>()
+const emit = defineEmits<{ rate: [rating: Rating]; skip: [] }>()
 
 const revealed = ref(false)
 
@@ -54,8 +54,17 @@ function rate(r: Rating) {
   emit('rate', r)
 }
 
+function skip() {
+  emit('skip')
+}
+
 function onKey(e: KeyboardEvent) {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+  if (e.key === 's' || e.key === 'S') {
+    e.preventDefault()
+    skip()
+    return
+  }
   if (!revealed.value && (e.key === ' ' || e.key === 'Enter')) {
     e.preventDefault()
     reveal()
@@ -98,8 +107,11 @@ const ratingButtons: { rating: Rating; label: string; cls: string; key: string }
       </div>
     </div>
 
-    <div v-if="!revealed" class="pt-4">
+    <div v-if="!revealed" class="pt-4 flex items-center gap-2">
       <Button @click="reveal">Reveal <span class="ml-2 text-xs opacity-70">space</span></Button>
+      <Button text severity="secondary" size="small" @click="skip">
+        Skip <span class="ml-2 text-xs opacity-70">s</span>
+      </Button>
     </div>
 
     <div v-else class="space-y-4 border-t border-surface-200 dark:border-surface-800 pt-4">
@@ -132,6 +144,12 @@ const ratingButtons: { rating: Rating; label: string; cls: string; key: string }
           <span>{{ b.label }}</span>
           <span class="text-[10px] opacity-80">{{ b.key }}</span>
         </button>
+      </div>
+
+      <div class="pt-1 text-center">
+        <Button text severity="secondary" size="small" @click="skip">
+          Skip <span class="ml-2 text-xs opacity-70">s</span>
+        </Button>
       </div>
     </div>
   </div>
