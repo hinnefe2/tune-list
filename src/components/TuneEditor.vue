@@ -38,7 +38,12 @@ const props = defineProps<{
   tuneSources?: TuneSourceWithSource[]
 }>()
 const emit = defineEmits<{
-  save: [payload: TuneInsert | TuneUpdate, isUpdate: boolean, mediaRows: NewMediaRow[]]
+  save: [
+    payload: TuneInsert | TuneUpdate,
+    isUpdate: boolean,
+    mediaRows: NewMediaRow[],
+    sources: Source[],
+  ]
   cancel: []
   'link-source': [source: Source]
   'unlink-source': [link: TuneSourceWithSource]
@@ -57,6 +62,7 @@ const blank = (): Form => ({
 
 const form = ref<Form>(blank())
 const mediaRows = ref<NewMediaRow[]>([])
+const stagedSources = ref<Source[]>([])
 const submitting = ref(false)
 const errorMsg = ref<string | null>(null)
 
@@ -66,6 +72,15 @@ const isAdd = computed(() => props.tune === null)
 const linkedSourceIds = computed(() =>
   (props.tuneSources ?? []).map((ts) => ts.source_id),
 )
+const stagedSourceIds = computed(() => stagedSources.value.map((s) => s.id))
+
+function addStagedSource(source: Source) {
+  if (stagedSources.value.some((s) => s.id === source.id)) return
+  stagedSources.value.push(source)
+}
+function removeStagedSource(idx: number) {
+  stagedSources.value.splice(idx, 1)
+}
 const duplicateMatches = computed(() =>
   findCandidates(form.value.name, tunesStore.tunes, {
     excludeId: props.tune?.id,
@@ -77,6 +92,7 @@ watch(
   (t) => {
     errorMsg.value = null
     mediaRows.value = []
+    stagedSources.value = []
     if (!t) {
       form.value = blank()
       return
@@ -157,7 +173,7 @@ async function handleSubmit() {
       status: form.value.status,
       notes: form.value.notes?.trim() || null,
     }
-    emit('save', payload, props.tune !== null, cleanedMedia)
+    emit('save', payload, props.tune !== null, cleanedMedia, [...stagedSources.value])
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -283,6 +299,35 @@ async function handleSubmit() {
         placeholder="Link a source…"
         :exclude-ids="linkedSourceIds"
         @select="(s: Source) => emit('link-source', s)"
+      />
+    </div>
+
+    <div v-if="isAdd" class="space-y-2">
+      <label class="block text-sm font-medium">Heard at</label>
+      <ul v-if="stagedSources.length" class="space-y-1">
+        <li
+          v-for="(s, idx) in stagedSources"
+          :key="s.id"
+          class="flex items-center gap-2 text-sm"
+        >
+          <i :class="[SOURCE_KIND_ICON[s.kind], 'text-surface-400']" />
+          <span class="flex-1 min-w-0 truncate">{{ s.name }}</span>
+          <Button
+            type="button"
+            icon="pi pi-times"
+            severity="secondary"
+            text
+            rounded
+            size="small"
+            aria-label="Remove source"
+            @click="removeStagedSource(idx)"
+          />
+        </li>
+      </ul>
+      <SourcePicker
+        placeholder="Link a source…"
+        :exclude-ids="stagedSourceIds"
+        @select="addStagedSource"
       />
     </div>
 
