@@ -11,6 +11,15 @@ import { STATUS_BADGE, STATUS_LABEL, STATUS_OPTIONS } from '@/lib/tune-options'
 import MediaEmbed from '@/components/MediaEmbed.vue'
 import { useDelayed } from '@/composables/useDelayed'
 
+// Sections run most-learned first, so "up" always means progress. Each keeps
+// its own priority sequence (priority = index + 1 within the section).
+type SectionStatus = Extract<TuneStatus, 'can_follow' | 'learning' | 'wishlist'>
+const SECTION_STATUSES: SectionStatus[] = ['can_follow', 'learning', 'wishlist']
+
+function isSectionStatus(status: TuneStatus): status is SectionStatus {
+  return (SECTION_STATUSES as TuneStatus[]).includes(status)
+}
+
 const tunesStore = useTunesStore()
 const toast = useToast()
 
@@ -19,9 +28,13 @@ const showSkeleton = useDelayed(loading)
 const reordering = ref(false)
 const expanded = ref<Set<string>>(new Set())
 
-// Local copy of the ordered list so reorder UI is instant; we reconcile to
+// Local copy of the ordered lists so reorder UI is instant; we reconcile to
 // the store's reactive truth after each successful save.
-const orderedTunes = ref<Tune[]>([])
+const sections = ref<Record<SectionStatus, Tune[]>>({
+  can_follow: [],
+  learning: [],
+  wishlist: [],
+})
 
 const mediaByTune = ref<Map<string, MediaLink[]>>(new Map())
 
@@ -39,10 +52,18 @@ function sortForLearn(tunes: Tune[]): Tune[] {
 }
 
 function rebuildOrdered() {
-  const filtered = tunesStore.tunes.filter(
-    (t) => t.status === 'wishlist' || t.status === 'learning',
-  )
-  orderedTunes.value = sortForLearn(filtered)
+  const next: Record<SectionStatus, Tune[]> = {
+    can_follow: [],
+    learning: [],
+    wishlist: [],
+  }
+  for (const tune of tunesStore.tunes) {
+    if (isSectionStatus(tune.status)) next[tune.status].push(tune)
+  }
+  for (const status of SECTION_STATUSES) {
+    next[status] = sortForLearn(next[status])
+  }
+  sections.value = next
 }
 
 async function load() {
@@ -72,7 +93,9 @@ async function load() {
 
 onMounted(load)
 
-const isEmpty = computed(() => !loading.value && orderedTunes.value.length === 0)
+const isEmpty = computed(
+  () => !loading.value && SECTION_STATUSES.every((s) => sections.value[s].length === 0),
+)
 
 function toggleExpanded(id: string) {
   const next = new Set(expanded.value)
@@ -82,31 +105,42 @@ function toggleExpanded(id: string) {
 }
 
 /**
- * Apply a new array order: write `priority = i + 1` for every item.
- * Optimistic — local state updates first, then we save. On failure we
- * rebuild from the store (which still has the prior priorities).
+ * Write `priority = i + 1` for every item in each supplied section list and
+ * mirror the result into the store. Priorities are only ever compared within
+ * a section, so the sequences restart at 1 per status.
  */
-async function applyOrder(next: Tune[]) {
+async function persistPriorities(lists: Tune[][]) {
+  const all = lists.flatMap((list) =>
+    list.map((t, i) => ({ id: t.id, priority: i + 1 })),
+  )
+  await setTunePriorities(all)
+  // Mirror new priorities into the store so other views (and a re-mount
+  // of this one) see them without a refetch.
+  for (const u of all) {
+    const existing = tunesStore.getById(u.id)
+    if (existing) {
+      const merged: Tune = { ...existing, priority: u.priority }
+      // Direct list mutation is fine — the store exposes `tunes` as a ref.
+      const idx = tunesStore.tunes.findIndex((t) => t.id === u.id)
+      if (idx !== -1) tunesStore.tunes[idx] = merged
+    }
+  }
+}
+
+/**
+ * Apply a new order within one section. Optimistic — local state updates
+ * first, then we save. On failure we restore the previous local order (the
+ * store still has the prior priorities).
+ */
+async function applyOrder(status: SectionStatus, next: Tune[]) {
   if (reordering.value) return
   reordering.value = true
-  const previous = orderedTunes.value
-  orderedTunes.value = next
+  const previous = sections.value[status]
+  sections.value[status] = next
   try {
-    const updates = next.map((t, i) => ({ id: t.id, priority: i + 1 }))
-    await setTunePriorities(updates)
-    // Mirror new priorities into the store so other views (and a re-mount
-    // of this one) see them without a refetch.
-    for (const u of updates) {
-      const existing = tunesStore.getById(u.id)
-      if (existing) {
-        const merged: Tune = { ...existing, priority: u.priority }
-        // Direct list mutation is fine — the store exposes `tunes` as a ref.
-        const idx = tunesStore.tunes.findIndex((t) => t.id === u.id)
-        if (idx !== -1) tunesStore.tunes[idx] = merged
-      }
-    }
+    await persistPriorities([next])
   } catch (e) {
-    orderedTunes.value = previous
+    sections.value[status] = previous
     toast.add({
       severity: 'error',
       summary: 'Reorder failed',
@@ -118,49 +152,72 @@ async function applyOrder(next: Tune[]) {
   }
 }
 
-function moveUp(idx: number) {
+function moveUp(status: SectionStatus, idx: number) {
   if (idx <= 0) return
-  const next = [...orderedTunes.value]
+  const next = [...sections.value[status]]
   ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
-  void applyOrder(next)
+  void applyOrder(status, next)
 }
 
-function moveDown(idx: number) {
-  if (idx >= orderedTunes.value.length - 1) return
-  const next = [...orderedTunes.value]
+function moveDown(status: SectionStatus, idx: number) {
+  if (idx >= sections.value[status].length - 1) return
+  const next = [...sections.value[status]]
   ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
-  void applyOrder(next)
+  void applyOrder(status, next)
 }
 
-function moveToTop(idx: number) {
+function moveToTop(status: SectionStatus, idx: number) {
   if (idx <= 0) return
-  const next = [...orderedTunes.value]
+  const next = [...sections.value[status]]
   const [item] = next.splice(idx, 1)
   next.unshift(item)
-  void applyOrder(next)
+  void applyOrder(status, next)
 }
 
-function moveToBottom(idx: number) {
-  if (idx >= orderedTunes.value.length - 1) return
-  const next = [...orderedTunes.value]
+function moveToBottom(status: SectionStatus, idx: number) {
+  if (idx >= sections.value[status].length - 1) return
+  const next = [...sections.value[status]]
   const [item] = next.splice(idx, 1)
   next.push(item)
-  void applyOrder(next)
+  void applyOrder(status, next)
 }
 
 async function setStatus(tune: Tune, next: TuneStatus) {
   if (tune.status === next) return
+  const from = isSectionStatus(tune.status) ? tune.status : null
   try {
     const updated = await tunesStore.update(tune.id, { status: next })
-    // If the new status leaves the Learn-eligible set, drop the tune from the
-    // local list immediately so the user sees the row disappear; otherwise
-    // patch the row in place.
-    if (next === 'wishlist' || next === 'learning') {
-      orderedTunes.value = orderedTunes.value.map((t) =>
-        t.id === tune.id ? updated : t,
-      )
+    const lists: Record<SectionStatus, Tune[]> = {
+      can_follow: [...sections.value.can_follow],
+      learning: [...sections.value.learning],
+      wishlist: [...sections.value.wishlist],
+    }
+    if (from) lists[from] = lists[from].filter((t) => t.id !== tune.id)
+
+    if (isSectionStatus(next)) {
+      // Land next to the boundary the tune just crossed: promoting a tune
+      // (moving up a section) puts it at the bottom of the destination,
+      // demoting it puts it at the top.
+      const movedUp =
+        from !== null &&
+        SECTION_STATUSES.indexOf(next) < SECTION_STATUSES.indexOf(from)
+      lists[next] = movedUp ? [...lists[next], updated] : [updated, ...lists[next]]
+      sections.value = lists
+      // The status itself is already saved; a failure here only means the new
+      // placement didn't stick, so it gets its own message.
+      try {
+        await persistPriorities(from ? [lists[from], lists[next]] : [lists[next]])
+      } catch (e) {
+        toast.add({
+          severity: 'warn',
+          summary: 'New position not saved',
+          detail: e instanceof Error ? e.message : String(e),
+          life: 5000,
+        })
+      }
     } else {
-      orderedTunes.value = orderedTunes.value.filter((t) => t.id !== tune.id)
+      // Left the Learn-eligible set entirely — drop the row and collapse it.
+      sections.value = lists
       const nextExpanded = new Set(expanded.value)
       nextExpanded.delete(tune.id)
       expanded.value = nextExpanded
@@ -186,8 +243,9 @@ async function setStatus(tune: Tune, next: TuneStatus) {
     <header class="space-y-1">
       <h1 class="text-2xl font-semibold">Learn</h1>
       <p class="text-sm text-surface-500">
-        Tunes in <span class="font-medium">Wishlist</span> and
-        <span class="font-medium">Learning</span>, in priority order. Reorder to
+        Tunes in <span class="font-medium">Can follow</span>,
+        <span class="font-medium">Learning</span> and
+        <span class="font-medium">Wishlist</span>, each in priority order. Reorder to
         plan what's next; tap a tune to peek at its media without leaving the queue.
       </p>
     </header>
@@ -201,118 +259,138 @@ async function setStatus(tune: Tune, next: TuneStatus) {
     <div v-else-if="isEmpty" class="py-16 text-center space-y-3">
       <p class="text-surface-500">Nothing to learn yet.</p>
       <p class="text-xs text-surface-400">
-        Tunes you mark <span class="font-medium">Wishlist</span> or
-        <span class="font-medium">Learning</span> will show up here.
+        Tunes you mark <span class="font-medium">Can follow</span>,
+        <span class="font-medium">Learning</span> or
+        <span class="font-medium">Wishlist</span> will show up here.
       </p>
     </div>
 
-    <ul v-else class="space-y-2">
-      <li
-        v-for="(tune, idx) in orderedTunes"
-        :key="tune.id"
-        class="border border-surface-200 dark:border-surface-800 rounded-lg overflow-hidden"
+    <template v-else>
+      <section
+        v-for="status in SECTION_STATUSES"
+        :key="status"
+        class="space-y-2"
       >
-        <div class="flex items-center gap-2 px-3 py-2 flex-wrap">
-          <span class="text-xs text-surface-400 tabular-nums w-6 text-right shrink-0">
-            {{ idx + 1 }}
+        <h2 class="text-sm font-semibold text-surface-500 uppercase tracking-wide">
+          {{ STATUS_LABEL[status] }}
+          <span class="ml-1 font-normal tabular-nums text-surface-400">
+            {{ sections[status].length }}
           </span>
-          <button
-            type="button"
-            class="flex-1 min-w-0 text-left flex items-center gap-2 hover:opacity-80"
-            :aria-expanded="expanded.has(tune.id)"
-            @click="toggleExpanded(tune.id)"
-          >
-            <i
-              :class="[
-                'pi text-xs text-surface-400 transition-transform',
-                expanded.has(tune.id) ? 'pi-chevron-down' : 'pi-chevron-right',
-              ]"
-            />
-            <span class="truncate font-medium">{{ tune.name }}</span>
-            <span v-if="tune.key" class="shrink-0 text-xs text-surface-500">
-              {{ tune.key }}
-            </span>
-          </button>
-          <div
-            :class="[
-              'flex items-center gap-0.5 shrink-0',
-              expanded.has(tune.id) ? 'max-sm:basis-full max-sm:justify-end' : '',
-            ]"
-          >
-            <Button
-              icon="pi pi-angle-double-up"
-              text
-              rounded
-              size="small"
-              aria-label="Move to top"
-              :disabled="idx === 0 || reordering"
-              @click="moveToTop(idx)"
-            />
-            <Button
-              icon="pi pi-angle-up"
-              text
-              rounded
-              size="small"
-              aria-label="Move up"
-              :disabled="idx === 0 || reordering"
-              @click="moveUp(idx)"
-            />
-            <Button
-              icon="pi pi-angle-down"
-              text
-              rounded
-              size="small"
-              aria-label="Move down"
-              :disabled="idx === orderedTunes.length - 1 || reordering"
-              @click="moveDown(idx)"
-            />
-            <Button
-              icon="pi pi-angle-double-down"
-              text
-              rounded
-              size="small"
-              aria-label="Move to bottom"
-              :disabled="idx === orderedTunes.length - 1 || reordering"
-              @click="moveToBottom(idx)"
-            />
-          </div>
-        </div>
+        </h2>
 
-        <div
-          v-if="expanded.has(tune.id)"
-          class="bg-surface-50 dark:bg-surface-950 px-4 py-3 space-y-3"
-        >
-          <div class="flex flex-wrap items-center gap-1.5">
-            <button
-              v-for="opt in STATUS_OPTIONS"
-              :key="opt.value"
-              type="button"
-              :aria-pressed="tune.status === opt.value"
-              :class="[
-                'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium transition',
-                tune.status === opt.value
-                  ? STATUS_BADGE[opt.value]
-                  : 'bg-transparent text-surface-500 dark:text-surface-400 ring-1 ring-inset ring-surface-300 dark:ring-surface-700 hover:bg-surface-100 dark:hover:bg-surface-900',
-              ]"
-              @click="setStatus(tune, opt.value)"
-            >
-              {{ opt.label }}
-            </button>
-          </div>
-          <ul v-if="(mediaByTune.get(tune.id) ?? []).length" class="space-y-4">
-            <li v-for="m in mediaByTune.get(tune.id)" :key="m.id">
-              <MediaEmbed :media="m" />
-            </li>
-          </ul>
-          <p v-else class="text-sm text-surface-500">No media linked yet.</p>
-          <RouterLink
-            :to="{ name: 'tune-detail', params: { id: tune.id } }"
-            class="text-sm text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1"
+        <p v-if="!sections[status].length" class="text-xs text-surface-400">
+          Nothing here yet.
+        </p>
+
+        <ul v-else class="space-y-2">
+          <li
+            v-for="(tune, idx) in sections[status]"
+            :key="tune.id"
+            class="border border-surface-200 dark:border-surface-800 rounded-lg overflow-hidden"
           >
-            Open tune detail <i class="pi pi-arrow-right text-xs" />
-          </RouterLink>
-        </div>
-      </li>
-    </ul>
+            <div class="flex items-center gap-2 px-3 py-2 flex-wrap">
+              <span class="text-xs text-surface-400 tabular-nums w-6 text-right shrink-0">
+                {{ idx + 1 }}
+              </span>
+              <button
+                type="button"
+                class="flex-1 min-w-0 text-left flex items-center gap-2 hover:opacity-80"
+                :aria-expanded="expanded.has(tune.id)"
+                @click="toggleExpanded(tune.id)"
+              >
+                <i
+                  :class="[
+                    'pi text-xs text-surface-400 transition-transform',
+                    expanded.has(tune.id) ? 'pi-chevron-down' : 'pi-chevron-right',
+                  ]"
+                />
+                <span class="truncate font-medium">{{ tune.name }}</span>
+                <span v-if="tune.key" class="shrink-0 text-xs text-surface-500">
+                  {{ tune.key }}
+                </span>
+              </button>
+              <div
+                :class="[
+                  'flex items-center gap-0.5 shrink-0',
+                  expanded.has(tune.id) ? 'max-sm:basis-full max-sm:justify-end' : '',
+                ]"
+              >
+                <Button
+                  icon="pi pi-angle-double-up"
+                  text
+                  rounded
+                  size="small"
+                  aria-label="Move to top"
+                  :disabled="idx === 0 || reordering"
+                  @click="moveToTop(status, idx)"
+                />
+                <Button
+                  icon="pi pi-angle-up"
+                  text
+                  rounded
+                  size="small"
+                  aria-label="Move up"
+                  :disabled="idx === 0 || reordering"
+                  @click="moveUp(status, idx)"
+                />
+                <Button
+                  icon="pi pi-angle-down"
+                  text
+                  rounded
+                  size="small"
+                  aria-label="Move down"
+                  :disabled="idx === sections[status].length - 1 || reordering"
+                  @click="moveDown(status, idx)"
+                />
+                <Button
+                  icon="pi pi-angle-double-down"
+                  text
+                  rounded
+                  size="small"
+                  aria-label="Move to bottom"
+                  :disabled="idx === sections[status].length - 1 || reordering"
+                  @click="moveToBottom(status, idx)"
+                />
+              </div>
+            </div>
+
+            <div
+              v-if="expanded.has(tune.id)"
+              class="bg-surface-50 dark:bg-surface-950 px-4 py-3 space-y-3"
+            >
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button
+                  v-for="opt in STATUS_OPTIONS"
+                  :key="opt.value"
+                  type="button"
+                  :aria-pressed="tune.status === opt.value"
+                  :class="[
+                    'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium transition',
+                    tune.status === opt.value
+                      ? STATUS_BADGE[opt.value]
+                      : 'bg-transparent text-surface-500 dark:text-surface-400 ring-1 ring-inset ring-surface-300 dark:ring-surface-700 hover:bg-surface-100 dark:hover:bg-surface-900',
+                  ]"
+                  @click="setStatus(tune, opt.value)"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+              <ul v-if="(mediaByTune.get(tune.id) ?? []).length" class="space-y-4">
+                <li v-for="m in mediaByTune.get(tune.id)" :key="m.id">
+                  <MediaEmbed :media="m" />
+                </li>
+              </ul>
+              <p v-else class="text-sm text-surface-500">No media linked yet.</p>
+              <RouterLink
+                :to="{ name: 'tune-detail', params: { id: tune.id } }"
+                class="text-sm text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1"
+              >
+                Open tune detail <i class="pi pi-arrow-right text-xs" />
+              </RouterLink>
+            </div>
+          </li>
+        </ul>
+      </section>
+    </template>
   </div>
 </template>
