@@ -99,7 +99,7 @@ Every owned table has `user_id`. RLS policies use a `can_view(target_user_id)` p
 - Section field on each media link: timestamp links can be tagged A / B / C / intro / etc.
 
 ### Practice (spaced repetition)
-- Auto-generate default cards (a_part, b_part, key) when a tune moves to `learning`.
+- Auto-generate default cards (a_part, b_part, key) when a tune moves to `can_lead`.
 - Toggle other card types per tune.
 - `/practice` view shows cards due today; queue mode steps through them.
 - Card prompts vary by `kind`. Reveal shows reference (sheet music, timestamped clip, etc.).

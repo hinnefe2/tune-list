@@ -135,11 +135,10 @@ async function handleSave(payload: TuneInsert | TuneUpdate, isUpdate: boolean) {
     tune.value = updated
     editorOpen.value = false
     toast.add({ severity: 'success', summary: 'Tune updated', life: 2000 })
-    // The ensure_default_cards trigger seeds A/B/Key cards when a tune
-    // first enters Learning or Can lead. Refetch so the toggles reflect them
-    // without requiring a page reload.
-    const seedsCards = (s: typeof updated.status) => s === 'learning' || s === 'can_lead'
-    if (seedsCards(updated.status) && updated.status !== previousStatus) {
+    // The ensure_default_cards trigger seeds A/B/Key cards when a tune first
+    // enters Can lead. Refetch so the toggles reflect them without requiring
+    // a page reload.
+    if (updated.status === 'can_lead' && updated.status !== previousStatus) {
       cards.value = await listCardsForTune(updated.id)
     }
   } catch (e) {
@@ -600,12 +599,8 @@ function deleteMedia(m: MediaLink) {
 
       <section class="space-y-3 border-t border-surface-200 dark:border-surface-800 pt-5">
         <h2 class="text-sm font-medium text-surface-500">Practice cards</h2>
-        <p
-          v-if="liveTune.status !== 'learning' && liveTune.status !== 'can_lead'"
-          class="text-xs text-surface-500"
-        >
+        <p v-if="liveTune.status !== 'can_lead'" class="text-xs text-surface-500">
           Default cards (A part, B part, key) auto-generate when a tune moves to
-          <span class="font-medium">Learning</span> or
           <span class="font-medium">Can lead</span>. Toggle additional kinds here.
         </p>
         <ul class="divide-y divide-surface-200 dark:divide-surface-800 border border-surface-200 dark:border-surface-800 rounded-lg">
